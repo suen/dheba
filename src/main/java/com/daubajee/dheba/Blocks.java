@@ -3,8 +3,6 @@ package com.daubajee.dheba;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.stereotype.Component;
-
 import com.google.common.collect.Range;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
@@ -13,7 +11,6 @@ import io.reactivex.Observable;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 
-@Component
 public class Blocks {
 
     private static final int BLOCK_GENERATION_INTERVAL = 10;

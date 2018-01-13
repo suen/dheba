@@ -1,19 +1,11 @@
 package com.daubajee.dheba;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.jacpfx.vertx.spring.SpringVerticle;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import io.reactivex.Observable;
-import io.reactivex.schedulers.Schedulers;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -21,21 +13,16 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 
-@Component
-@SpringVerticle(springConfig = BeanConfiguration.class)
 public class NodeVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NodeVerticle.class);
 
-    private Blocks blocks;
-
-    @Autowired
-    public void setBlockChain(Blocks blockChain) {
-        this.blocks = blockChain;
-    }
+    private EventBus eventBus;
 
     @Override
     public void start() throws Exception {
+
+        eventBus = vertx.eventBus();
 
         HttpServer server = vertx.createHttpServer();
 
@@ -57,41 +44,45 @@ public class NodeVerticle extends AbstractVerticle {
     }
 
     private void handleGetBlock(RoutingContext cxt) {
-        List<Block> blockchain = blocks.getBlockchain();
-        List<JsonObject> jsonBlocks = blockchain.stream()
-            .map(block -> block.toJson())
-            .collect(Collectors.toList());
-        JsonArray jsonArray = new JsonArray(jsonBlocks);
-        String jsonArrayStr = jsonArray.toString();
-        
+        JsonObject requestObj = MsgUtils.createRequest(BlockVerticle.GET_ALL_BLOCKS);
         HttpServerResponse response = cxt.response();
-        response.putHeader("Content-Type", "application/json");
-        response.putHeader("Content-Length", String.valueOf(jsonArrayStr.length()));
-        response.write(jsonArrayStr);
-        response.close();
+
+        eventBus.send("BLOCK", requestObj, result -> {
+            if (result.succeeded()) {
+                JsonObject reply = (JsonObject) result.result().body();
+                String replyMsgString = MsgUtils.getReplyMsgString(reply);
+
+                response.putHeader("Content-Type", "application/json");
+                response.putHeader("Content-Length", String.valueOf(replyMsgString.length()));
+                response.write(replyMsgString);
+            } else {
+                response.setStatusCode(500);
+            }
+            response.close();
+        });
     }
 
     private void handleMineBlock(RoutingContext cxt) {
         String data = cxt.getBody().toString();
+        HttpServerResponse response = cxt.response();
 
-        Observable.create(sub -> {
+        JsonObject request = MsgUtils.createRequest(BlockVerticle.MINE_NEW_BLOCK, data);
 
-            List<Block> blockchain = blocks.getBlockchain();
-            Block latestBlock = blockchain.get(blockchain.size() - 1);
-            long difficulty = Blocks.getDifficulty(blockchain);
-            long currentTimestamp = System.currentTimeMillis();
-            Block newBlock = Blocks.findNewBlock(latestBlock.getIndex() + 1, latestBlock.getHash(), currentTimestamp, data,
-                    difficulty);
-            
-            blockchain.add(newBlock);
-            
-            HttpServerResponse response = cxt.response();
-            response.setStatusCode(204);
+        DeliveryOptions options = MsgUtils.deliveryOpWithTimeout(60000);
+
+        eventBus.send("BLOCK", request, callback -> {
+            if (callback.succeeded()) {
+                JsonObject reply = (JsonObject) callback.result().body();
+                String status = MsgUtils.getStatus(reply);
+                if ("OK".equals(status)) {
+                    response.setStatusCode(204);
+                    response.close();
+                    return;
+                }
+            }
+            response.setStatusCode(500);
             response.close();
-            sub.onComplete();
-        })
-        .subscribeOn(Schedulers.computation())
-        .subscribe();
+        });
     }
 
     private void handlePeers(RoutingContext cxt) {
