@@ -7,10 +7,11 @@ import org.jacpfx.vertx.spring.SpringVerticle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -67,13 +68,30 @@ public class NodeVerticle extends AbstractVerticle {
         response.putHeader("Content-Type", "application/json");
         response.putHeader("Content-Length", String.valueOf(jsonArrayStr.length()));
         response.write(jsonArrayStr);
+        response.close();
     }
 
     private void handleMineBlock(RoutingContext cxt) {
-        HttpServerRequest request = cxt.request();
         String data = cxt.getBody().toString();
-        List<Block> blockchain = blocks.getBlockchain();
-        Block newBlock = blocks.generateNewBlock(data, blockchain.get(blockchain.size() - 1));
+
+        Observable.create(sub -> {
+
+            List<Block> blockchain = blocks.getBlockchain();
+            Block latestBlock = blockchain.get(blockchain.size() - 1);
+            long difficulty = Blocks.getDifficulty(blockchain);
+            long currentTimestamp = System.currentTimeMillis();
+            Block newBlock = Blocks.findNewBlock(latestBlock.getIndex() + 1, latestBlock.getHash(), currentTimestamp, data,
+                    difficulty);
+            
+            blockchain.add(newBlock);
+            
+            HttpServerResponse response = cxt.response();
+            response.setStatusCode(204);
+            response.close();
+            sub.onComplete();
+        })
+        .subscribeOn(Schedulers.computation())
+        .subscribe();
     }
 
     private void handlePeers(RoutingContext cxt) {
