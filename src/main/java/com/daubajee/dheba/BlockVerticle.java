@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import io.reactivex.schedulers.Schedulers;
-import io.reactivex.subjects.PublishSubject;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
@@ -24,8 +22,6 @@ public class BlockVerticle extends AbstractVerticle {
 
     private Blocks blocks;
 
-    private PublishSubject<Message<Object>> internalBus = PublishSubject.create();
-
     @Override
     public void start() throws Exception {
         blocks = new Blocks();
@@ -33,14 +29,15 @@ public class BlockVerticle extends AbstractVerticle {
         EventBus eventBus = vertx.eventBus();
 
         eventBus.consumer("BLOCK").handler(this::handleMessage);
-
-        internalBus
-            .subscribeOn(Schedulers.computation())
-            .subscribe(this::onMessage);
     }
 
     private void handleMessage(Message<Object> msg) {
-        internalBus.onNext(msg);
+        vertx.executeBlocking(handler -> {
+            onMessage(msg);
+            handler.complete();
+        }, result -> {
+
+        });
     }
 
     private void onMessage(Message<Object> msg) {
