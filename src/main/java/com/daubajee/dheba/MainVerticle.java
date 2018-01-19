@@ -1,8 +1,15 @@
 package com.daubajee.dheba;
 
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.core.net.JksOptions;
+import io.vertx.ext.auth.shiro.ShiroAuthOptions;
+import io.vertx.ext.auth.shiro.ShiroAuthRealmType;
+import io.vertx.ext.shell.ShellService;
+import io.vertx.ext.shell.ShellServiceOptions;
+import io.vertx.ext.shell.term.SSHTermOptions;
 
 public class MainVerticle extends AbstractVerticle {
 
@@ -11,7 +18,7 @@ public class MainVerticle extends AbstractVerticle {
     @Override
     public void start() throws Exception {
         String[] verticles = new String[]{"com.daubajee.dheba.NodeVerticle",
-                "com.daubajee.dheba.PeerVerticle", "com.daubajee.dheba.BlockVerticle"};
+                "com.daubajee.dheba.peer.PeerVerticle", "com.daubajee.dheba.BlockVerticle"};
         for (String verticle : verticles) {
             vertx.deployVerticle(verticle, result -> {
                 if (result.succeeded()) {
@@ -21,6 +28,25 @@ public class MainVerticle extends AbstractVerticle {
                 }
             });
         }
+        
+        ShellService service = ShellService.create(vertx,
+                new ShellServiceOptions().setSSHOptions(
+                    new SSHTermOptions().
+                        setHost("localhost").
+                        setPort(5000).
+                        setKeyPairOptions(new JksOptions().
+                                setPath("/home/surendra/keystore.jks").
+                                setPassword("freeworld")
+                        ).
+                        setAuthOptions(new ShiroAuthOptions().
+                                setType(ShiroAuthRealmType.PROPERTIES).
+                                setConfig(new JsonObject().
+                                    put("properties_path", "file:auth.properties"))
+                        )
+                )
+            );
+        service.start();
+        
     }
 
 }
