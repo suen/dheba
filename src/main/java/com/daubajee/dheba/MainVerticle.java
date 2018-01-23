@@ -15,6 +15,8 @@ public class MainVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MainVerticle.class);
 
+    Config config = Config.instance();
+
     @Override
     public void start() throws Exception {
         String[] verticles = new String[]{"com.daubajee.dheba.NodeVerticle",
@@ -28,14 +30,16 @@ public class MainVerticle extends AbstractVerticle {
                 }
             });
         }
-        
+
+        int sshPort = config.getSSHPort();
+
         ShellService service = ShellService.create(vertx,
                 new ShellServiceOptions().setSSHOptions(
                     new SSHTermOptions().
                         setHost("localhost").
-                        setPort(5000).
+                        setPort(sshPort).
                         setKeyPairOptions(new JksOptions().
-                                setPath("/home/surendra/keystore.jks").
+                                setPath("keystore.jks").
                                 setPassword("freeworld")
                         ).
                         setAuthOptions(new ShiroAuthOptions().
@@ -46,7 +50,6 @@ public class MainVerticle extends AbstractVerticle {
                 )
             );
         service.start();
-        
     }
 
 }

@@ -39,8 +39,9 @@ public class NodeVerticle extends AbstractVerticle {
         router.route().method(HttpMethod.POST).path("/addPeer").handler(this::handleAddPeer);
 
         server.requestHandler(router::accept);
-        server.listen(42042);
-        LOGGER.info("Node listening at 42042");
+        int httpPort = Config.instance().getHttpPort();
+        server.listen(httpPort);
+        LOGGER.info("HTTP listening on " + httpPort);
     }
 
     private void handleGetBlock(RoutingContext cxt) {

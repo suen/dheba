@@ -3,6 +3,7 @@ package com.daubajee.dheba.peer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.daubajee.dheba.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.EventBus;
@@ -28,6 +29,12 @@ public class RemotePeerVerticle extends AbstractVerticle {
 
     private EventBus eventBus;
 
+    private Config config;
+
+    public RemotePeerVerticle() {
+        config = Config.instance();
+    }
+
     @Override
     public void start() throws Exception {
 
@@ -39,11 +46,13 @@ public class RemotePeerVerticle extends AbstractVerticle {
 
         server.connectHandler(this::onNewPeerConnect);
 
-        server.listen(7000, res -> {
+        int p2PPort = config.getP2PPort();
+        server.listen(p2PPort, res -> {
             if (res.failed()) {
-                LOGGER.error("Binding on port 7000 failed");
+                LOGGER.error("Binding on port " + p2PPort + " failed", res.cause());
                 return;
             }
+            LOGGER.info("P2P listening on " + p2PPort);
         });
     }
 
