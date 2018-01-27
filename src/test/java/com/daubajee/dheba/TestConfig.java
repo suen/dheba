@@ -22,4 +22,17 @@ public class TestConfig {
         assertThat(seeds.size(), equalTo(4));
     }
 
+    @Test
+    public void testPorts() {
+        System.setProperty(Config.P_HTTP_PORT, "8989");
+        System.setProperty(Config.P_SSH_PORT, "6969");
+        System.setProperty(Config.P_P2P_PORT, "10245");
+
+        Config config = new Config();
+
+        assertThat(config.getP2PPort(), equalTo(10245));
+        assertThat(config.getHttpPort(), equalTo(8989));
+        assertThat(config.getSSHPort(), equalTo(6969));
+    }
+
 }
