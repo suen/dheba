@@ -8,6 +8,8 @@ public class S {
 
     public static final String MESSAGE = "message";
 
+    public static final String CONTENT = "content";
+
     public static final String BODY = "body";
 
     public static final String TYPE = "type";
