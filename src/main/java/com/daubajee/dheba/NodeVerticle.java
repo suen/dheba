@@ -1,8 +1,11 @@
 package com.daubajee.dheba;
 
+import com.daubajee.dheba.peer.PeerVerticle;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -40,8 +43,13 @@ public class NodeVerticle extends AbstractVerticle {
 
         server.requestHandler(router::accept);
         int httpPort = Config.instance().getHttpPort();
-        server.listen(httpPort);
-        LOGGER.info("HTTP listening on " + httpPort);
+        server.listen(httpPort, handler -> {
+            if (handler.failed()) {
+                LOGGER.error("Failed binding on " + httpPort);
+            } else {
+                LOGGER.info("HTTP listening on " + httpPort);
+            }
+        });
     }
 
     private void handleGetBlock(RoutingContext cxt) {
@@ -87,6 +95,25 @@ public class NodeVerticle extends AbstractVerticle {
     }
 
     private void handlePeers(RoutingContext cxt) {
+
+        eventBus.send(PeerVerticle.GET_PEER_LIST, new JsonObject(), handler -> {
+            HttpServerResponse response = cxt.response();
+            if (handler.failed()) {
+                String msg = handler.cause().getMessage();
+                response.putHeader("Content-Length", String.valueOf(msg.length()));
+                response.write(msg);
+                response.setStatusCode(500);
+                response.end();
+                return;
+            }
+            Message<Object> result = handler.result();
+            JsonObject peers = (JsonObject) result.body();
+            String peersStr = peers.toString();
+            response.putHeader("Content-Length", String.valueOf(peersStr.length()));
+            response.putHeader("Content-Type", "application/json");
+            response.write(peersStr);
+            response.end();
+        });
 
     }
 
