@@ -1,5 +1,7 @@
 package com.daubajee.dheba.peer.msg;
 
+import com.daubajee.dheba.utils.JsonUtils;
+
 import io.vertx.core.json.JsonObject;
 
 public class HandShake {
@@ -83,6 +85,10 @@ public class HandShake {
                 .put("addrMe", addrMe)
                 .put("agent", agent)
                 .put("bestHeight", bestHeight);
+    }
+
+    public static HandShake fromJson(JsonObject json) {
+        return JsonUtils.fromJson(json, HandShake.class);
     }
 
 }
