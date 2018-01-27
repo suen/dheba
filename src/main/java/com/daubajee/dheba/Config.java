@@ -15,13 +15,13 @@ import io.vertx.core.logging.LoggerFactory;
 public class Config {
     private static final Logger LOGGER = LoggerFactory.getLogger(Config.class);
 
-    public static final String P_HTTP_PORT = "dbeba.port.http";
+    public static final String P_HTTP_PORT = "dheba.port.http";
 
-    public static final String P_SSH_PORT = "dbeba.port.ssh";
+    public static final String P_SSH_PORT = "dheba.port.ssh";
 
-    public static final String P_P2P_PORT = "dbeba.port.p2p";
+    public static final String P_P2P_PORT = "dheba.port.p2p";
 
-    public static final String P_P2P_SEEDS = "dbeba.seeds.p2p";
+    public static final String P_P2P_SEEDS = "dheba.seeds.p2p";
 
     public static final int DEFAULT_HTTP_PORT = 8080;
 
@@ -31,8 +31,13 @@ public class Config {
 
     public static final Pattern P2P_ADDRESS_PATTERN = Pattern.compile("([\\w\\d]+)(\\.[\\w\\d]+)*(\\:)(\\d+)");
 
+    public Config() {
+
+    }
+
     public int getHttpPort() {
-        return getFromSysEnvOrDefault(P_HTTP_PORT, DEFAULT_HTTP_PORT);
+        Integer port = getFromSysEnvOrDefault(P_HTTP_PORT, DEFAULT_HTTP_PORT);
+        return port;
     }
 
     public int getSSHPort() {
@@ -61,11 +66,14 @@ public class Config {
             .filter(s -> {
                 boolean matches = P2P_ADDRESS_PATTERN.matcher(s.trim()).matches();
                 if (!matches) {
-                        LOGGER.warn("Seed address invalid : " + s);
+                    LOGGER.warn("Seed address invalid : " + s);
                 }
                 return matches;
             })
             .collect(Collectors.toSet());
+        if (validSeeds.isEmpty()) {
+            LOGGER.warn("No initial seed address configured");
+        }
         return validSeeds;
     }
 
