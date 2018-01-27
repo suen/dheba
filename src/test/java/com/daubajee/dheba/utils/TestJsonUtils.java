@@ -6,7 +6,7 @@ import static org.junit.Assert.assertThat;
 import org.junit.Test;
 
 import com.daubajee.dheba.peer.RemotePeer;
-import com.daubajee.dheba.utils.JsonUtils;
+import com.daubajee.dheba.peer.msg.HandShake;
 
 import io.vertx.core.json.JsonObject;
 
@@ -50,6 +50,21 @@ public class TestJsonUtils {
         assertThat(peerFromJson.getBestHeight(), equalTo(bestHeight));
         assertThat(peerFromJson.isActive(), equalTo(active));
 
+    }
+
+    @Test
+    public void testToFromJsonHandshake() {
+        String jsonStr = "{\"version\":\"0.42\",\"services\":\"NODE BETA ALPHA\","
+                + "\"timestamp\":1517072101027,\"addrYou\":\"127.0.0.1:42042\","
+                + "\"addrMe\":\"chaku:3032\",\"agent\":\"dheba 0.1\",\"bestHeight\":1}";
+        HandShake handshake = HandShake.fromJson(new JsonObject(jsonStr));
+        assertThat(handshake.getAddrMe(), equalTo("chaku:3032"));
+        assertThat(handshake.getAddrYou(), equalTo("127.0.0.1:42042"));
+        assertThat(handshake.getAgent(), equalTo("dheba 0.1"));
+        assertThat(handshake.getBestHeight(), equalTo(1));
+        assertThat(handshake.getTimestamp(), equalTo(1517072101027L));
+        assertThat(handshake.getVersion(), equalTo("0.42"));
+        assertThat(handshake.getServices(), equalTo("NODE BETA ALPHA"));
     }
 
 }
