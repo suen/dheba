@@ -29,7 +29,7 @@ public class Config {
 
     public static final int DEFAULT_P2P_PORT = 42042;
 
-    public static final Pattern P2P_ADDRESS_PATTERN = Pattern.compile("([\\w\\d]+)(\\.[\\w\\d]+)*(\\:)(\\d+)");
+    public static final Pattern P2P_ADDRESS_PATTERN = Pattern.compile("((?:[\\w\\d]+)(?:\\.[\\w\\d]+)*)(\\:)(\\d+)");
 
     public Config() {
 
