@@ -3,14 +3,16 @@ package com.daubajee.dheba.peer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.daubajee.dheba.Config;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
@@ -44,7 +46,7 @@ public class RemotePeerVerticle extends AbstractVerticle {
 
         NetServer server = vertx.createNetServer();
 
-        server.connectHandler(this::onNewPeerConnect);
+        server.connectHandler(this::onNewClientPeerConnect);
 
         int p2PPort = config.getP2PPort();
         server.listen(p2PPort, res -> {
@@ -112,12 +114,20 @@ public class RemotePeerVerticle extends AbstractVerticle {
 
             NetSocket socket = handler.result();
 
-            onNewPeerConnect(socket);
+            onNewServerPeerConnect(socket);
 
         });
     }
+    private void onNewServerPeerConnect(NetSocket socket) {
+        SocketAddress remoteAddress = socket.remoteAddress();
 
-    private void onNewPeerConnect(NetSocket socket) {
+        String remoteAddressStr = remoteAddress.toString();
+
+        LOGGER.info("New Client peer connected : " + remoteAddressStr);
+    }
+
+    private void onNewClientPeerConnect(NetSocket socket) {
+
         socket.handler(buffer -> onPeerMessage(buffer, socket));
 
         socket.closeHandler(end -> onPeerClose(socket));
@@ -132,7 +142,7 @@ public class RemotePeerVerticle extends AbstractVerticle {
                 .put(S.REMOTE_HOST, remoteAddress.host())
                 .put(S.REMOTE_PORT, remoteAddress.port())
                 .put(S.TYPE, PeerVerticle.NEW_PEER_CONNECTED);
-
+        LOGGER.info("New Client peer connected : " + remoteAddressStr);
         eventBus.publish(PeerVerticle.NAME, newPeerMsg);
     }
 
