@@ -15,7 +15,7 @@ public class TestJsonUtils {
     @Test
     public void testToFromJson() {
         String agent = "dbeba 0.1";
-        String hostname = "remoteHost";
+        String hostname = "localhost";
         int port = 8000;
         int bestHeight = 100;
         long lastconnected = System.currentTimeMillis();

@@ -1,5 +1,7 @@
 package com.daubajee.dheba.peer;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.regex.Matcher;
 
 import com.daubajee.dheba.Config;
@@ -12,6 +14,8 @@ public class RemotePeer {
     private int port;
 
     private String hostname;
+
+    private String hostAddress;
 
     private long lastConnected;
 
@@ -37,15 +41,26 @@ public class RemotePeer {
         } else {
             throw new IllegalArgumentException("Invalid address " + address);
         }
+
+        initHostAddress();
+    }
+
+    private void initHostAddress() {
+        try {
+            hostAddress = InetAddress.getByName(hostname).getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new IllegalArgumentException("Unknown host " + hostname);
+        }
     }
 
     public RemotePeer(int port, String hostname) {
         this.port = port;
         this.hostname = hostname;
+        initHostAddress();
     }
 
     public String identifier() {
-        return hostname + ":" + port;
+        return hostAddress + ":" + port;
     }
 
     public int getPort() {
@@ -62,6 +77,14 @@ public class RemotePeer {
 
     public void setHostname(String hostname) {
         this.hostname = hostname;
+    }
+
+    public String getHostAddress() {
+        return hostAddress;
+    }
+
+    public void setHostAddress(String hostAddress) {
+        this.hostAddress = hostAddress;
     }
 
     public long getLastConnected() {
