@@ -31,6 +31,8 @@ public class Config {
 
     public static final Pattern P2P_ADDRESS_PATTERN = Pattern.compile("((?:[\\w\\d]+)(?:\\.[\\w\\d]+)*)(\\:)(\\d+)");
 
+    public static final Integer MAX_PEER_CONNECTIONS = 2;
+
     public Config() {
 
     }
@@ -108,6 +110,10 @@ public class Config {
         } catch (Exception e){
             throw new IllegalArgumentException(e);
         }
+    }
+
+    public Integer getMaxPeerConnections() {
+        return MAX_PEER_CONNECTIONS;
     }
 
     public static Config instance(){
