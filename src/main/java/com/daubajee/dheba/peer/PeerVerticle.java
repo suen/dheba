@@ -36,11 +36,13 @@ public class PeerVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PeerVerticle.class);
 
-    private Config config = new Config();
+    private Config config = Config.instance();
 
     private Set<String> knownSelfAddresses = new ConcurrentHashSet<String>();
 
     private Map<String, RemotePeer> remotePeers = new ConcurrentHashMap<>();
+
+    private Set<String> activePeers = new ConcurrentHashSet<>();
 
     @Override
     public void start() throws Exception {
@@ -84,19 +86,27 @@ public class PeerVerticle extends AbstractVerticle {
         });
 
         vertx.periodicStream(10000).handler(handler -> {
-
-            remotePeers.values().forEach(peer -> {
-                LOGGER.info("Requesting PEER from " + peer.identifier());
-                JsonObject remotePeerPacket = createRemotePeerPacket(GET_PEER_LIST, new JsonObject());
-                JsonObject verticlePacket = createPeerSendVerticlePacket(peer.getHostname(), peer.getPort(),
-                        remotePeerPacket);
-                eventBus.send(RemotePeerVerticle.NAME, verticlePacket);
-            });
+            LOGGER.info("Number of connected peers : " + activePeers.size());
+            if (activePeers.size() != config.getMaxPeerConnections()) {
+                remotePeers.values()
+                    .stream()
+                    .filter(peer -> !activePeers.contains(peer.identifier()))
+                    .findFirst()
+                    .ifPresent(peer -> {
+                        LOGGER.info("Sending handshake to a unconnected peer");
+                        sendHandshake(peer.getHostAddress(), peer.getPort());
+                    });
+            }
         });
 
     }
 
     private void onAddNewPeer(Message<Object> msg) {
+        vertx.timerStream(3000)
+            .handler(handler -> onAddNewPeerDelayed(msg));
+    }
+
+    private void onAddNewPeerDelayed(Message<Object> msg) {
         Object bodyObj = msg.body();
         JsonObject body;
         if (bodyObj instanceof String) {
@@ -117,10 +127,29 @@ public class PeerVerticle extends AbstractVerticle {
             LOGGER.warn("Bad message ", msg);
             return;
         }
-        JsonObject peerConnectMsg = body.copy();
-        peerConnectMsg.put(S.TYPE, RemotePeerVerticle.PEER_CONNECT);
 
-        eventBus.publish(RemotePeerVerticle.NAME, peerConnectMsg);
+        RemotePeer remotePeer = new RemotePeer(remotePort, remoteHost);
+        remotePeers.put(remotePeer.identifier(), remotePeer);
+
+        sendHandshake(remotePeer.getHostAddress(), remotePeer.getPort());
+    }
+
+    private void sendHandshake(String remoteHost, Integer remotePort) {
+
+        JsonObject handShakeMsg = createHandShakeMessage(remoteHost, remotePort, config.getHostname(),
+                config.getP2PPort());
+        JsonObject peerPacket = createRemotePeerPacket("HANDSHAKE", handShakeMsg);
+
+        JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
+
+        eventBus.send(RemotePeerVerticle.NAME, verticleMsgPacket, result -> {
+            if (result.failed()) {
+                LOGGER.warn("Connection to " + remoteHost + ":" + remotePort + " failed");
+                return;
+            }
+            LOGGER.info("Connected to " + remoteHost + ":" + remotePort + ", awaiting HANDSHAKE_ACK");
+            activePeers.add(remoteHost + ":" + remotePort);
+        });
     }
 
     private void onNewPeerConnected(Message<JsonObject> msg) {
@@ -175,7 +204,11 @@ public class PeerVerticle extends AbstractVerticle {
                     LOGGER.warn("HANDSHAKE message has empty content");
                 } else {
                     updatePeerInfo(remoteHost, remotePort, content);
+                    sendHandshakeAct(remoteHost, remotePort);
                 }
+                break;
+            case "HANDSHAKE_ACK" :
+                LOGGER.warn("HANDSHAKE_ACK message received");
                 break;
             case "GET_PEER_LIST" :
                 JsonObject peers = getRemotePeersJson();
@@ -193,6 +226,7 @@ public class PeerVerticle extends AbstractVerticle {
                 break;
         }
     }
+
 
     private void updatePeerInfo(String remoteHost, int remotePort, JsonObject handshakeMsg) {
         HandShake peerHandshake = HandShake.fromJson(handshakeMsg);
@@ -215,6 +249,13 @@ public class PeerVerticle extends AbstractVerticle {
         remotePeers.put(peer.identifier(), peer);
 
         LOGGER.info("Peer updated : " + peer.toJson());
+    }
+
+    private void sendHandshakeAct(String remoteHost, int remotePort) {
+        JsonObject handshakeReply = createRemotePeerPacket("HANDSHAKE_ACK", new JsonObject());
+        JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, handshakeReply);
+        eventBus.send(RemotePeerVerticle.NAME, verticleMsgPacket);
+        LOGGER.info("HANDSHAKE_ACK sent");
     }
 
     private void updatePeerStatus(String hostname, Integer port) {

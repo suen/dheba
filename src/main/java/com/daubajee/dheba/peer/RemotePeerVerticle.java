@@ -1,6 +1,7 @@
 package com.daubajee.dheba.peer;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
@@ -58,8 +59,8 @@ public class RemotePeerVerticle extends AbstractVerticle {
         });
     }
 
-    private void onMessage(Message<JsonObject> jsonObject) {
-        JsonObject body = jsonObject.body();
+    private void onMessage(Message<JsonObject> msg) {
+        JsonObject body = msg.body();
         String type = body.getString(S.TYPE, "");
         if (type.isEmpty()) {
             return;
@@ -68,62 +69,61 @@ public class RemotePeerVerticle extends AbstractVerticle {
         Integer port;
 
         switch (type) {
-            case PEER_CONNECT :
-                remoteHost = body.getString(S.REMOTE_HOST, "");
-                port = body.getInteger(S.REMOTE_PORT, 0);
-                if (remoteHost.isEmpty() || port == 0) {
-                    LOGGER.error("Bad remoteHost, port ", remoteHost, port);
-                    break;
-                }
-                connectPeer(remoteHost, port);
-                break;
             case PEER_SEND :
                 remoteHost = body.getString(S.REMOTE_HOST, "");
                 port = body.getInteger(S.REMOTE_PORT, 0);
 
-                String remoteAddress = remoteHost + ":" + port;
-                NetSocket netSocket = remotes.get(remoteAddress);
-                if (netSocket == null) {
-                    LOGGER.warn("No active socket for remoteAddress " + remoteAddress);
-                }
-
-                JsonObject message = body.getJsonObject(S.MESSAGE);
-
-                JsonObject peerSendMsg = PeerUtils.createPeerSendMsg(message);
-
-                Buffer socketFrame = PeerUtils.toSocketFrame(peerSendMsg);
-                netSocket.write(socketFrame);
+                getorCreateRemoteSocket(remoteHost, port)
+                    .thenAccept(socket -> {
+                        JsonObject message = body.getJsonObject(S.MESSAGE);
+                        
+                        JsonObject peerSendMsg = PeerUtils.createPeerSendMsg(message);
+                        
+                        Buffer socketFrame = PeerUtils.toSocketFrame(peerSendMsg);
+                        LOGGER.info("Send message to " + remoteHost + ":" + port + " of type : " + message.getString(S.TYPE));
+                        socket.write(socketFrame);
+                        msg.reply(new JsonObject());
+                    });
                 break;
             default :
-                LOGGER.debug("Unknown message type " + type);
+                LOGGER.warn("Unknown message type " + type);
                 break;
         }
     }
 
-    private void connectPeer(String remoteHost, Integer port) {
+    private CompletableFuture<NetSocket> getorCreateRemoteSocket(String remoteHost, Integer port) {
+        CompletableFuture<NetSocket> netSocketContainer = new CompletableFuture<>();
+
+        String remoteAddress = remoteHost + ":" + port;
+        NetSocket netSocket = remotes.get(remoteAddress);
+        if (netSocket != null) {
+            netSocketContainer.complete(netSocket);
+            return netSocketContainer;
+        }
+
+        LOGGER.info("No active socket for remoteAddress " + remoteAddress + ", creating one..");
         NetClient client = vertx.createNetClient();
         client.connect(port, remoteHost, handler -> {
 
             String remote = remoteHost + ":" + port;
             if (handler.failed()) {
-                LOGGER.info("Connection to Peer '" + remote + "' failed");
+                LOGGER.info("Connection to remoteAddress '" + remote + "' failed");
                 return;
             } else {
-                LOGGER.info("Connected to Peer: " + remote);
+                LOGGER.info("Connected to remoteAddress: " + remote);
             }
 
             NetSocket socket = handler.result();
 
-            onNewServerPeerConnect(socket);
+            socket.handler(buffer -> onPeerMessage(buffer, socket));
 
+            socket.closeHandler(end -> onPeerClose(socket));
+
+            remotes.put(remoteAddress, socket);
+            netSocketContainer.complete(socket);
         });
-    }
-    private void onNewServerPeerConnect(NetSocket socket) {
-        SocketAddress remoteAddress = socket.remoteAddress();
 
-        String remoteAddressStr = remoteAddress.toString();
-
-        LOGGER.info("New Client peer connected : " + remoteAddressStr);
+        return netSocketContainer;
     }
 
     private void onNewClientPeerConnect(NetSocket socket) {
@@ -137,13 +137,8 @@ public class RemotePeerVerticle extends AbstractVerticle {
         String remoteAddressStr = remoteAddress.toString();
         
         remotes.put(remoteAddressStr, socket);
-        
-        JsonObject newPeerMsg = new JsonObject()
-                .put(S.REMOTE_HOST, remoteAddress.host())
-                .put(S.REMOTE_PORT, remoteAddress.port())
-                .put(S.TYPE, PeerVerticle.NEW_PEER_CONNECTED);
+
         LOGGER.info("New Client peer connected : " + remoteAddressStr);
-        eventBus.publish(PeerVerticle.NAME, newPeerMsg);
     }
 
     private void onPeerMessage(Buffer buffer, NetSocket socket) {
