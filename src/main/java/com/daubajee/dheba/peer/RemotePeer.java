@@ -2,6 +2,7 @@ package com.daubajee.dheba.peer;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.UUID;
 import java.util.regex.Matcher;
 
 import com.daubajee.dheba.Config;
@@ -12,6 +13,8 @@ import io.vertx.core.json.JsonObject;
 public class RemotePeer {
 
     private int port;
+
+    private UUID uuid;
 
     private String hostname;
 
@@ -73,6 +76,14 @@ public class RemotePeer {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public UUID getUuid() {
+        return uuid;
+    }
+
+    public void setUuid(UUID uuid) {
+        this.uuid = uuid;
     }
 
     public void setHostname(String hostname) {
