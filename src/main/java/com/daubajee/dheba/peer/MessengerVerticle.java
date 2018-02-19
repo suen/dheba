@@ -43,7 +43,7 @@ public class MessengerVerticle extends AbstractVerticle {
 
         eventBus = vertx.eventBus();
 
-        eventBus.consumer(NAME, this::onMessage);
+        eventBus.consumer("REMOTE_PEER_SEND", this::onPeerSend);
 
         NetServer server = vertx.createNetServer();
 
@@ -59,36 +59,23 @@ public class MessengerVerticle extends AbstractVerticle {
         });
     }
 
-    private void onMessage(Message<JsonObject> msg) {
+    private void onPeerSend(Message<JsonObject> msg) {
         JsonObject body = msg.body();
-        String type = body.getString(S.TYPE, "");
-        if (type.isEmpty()) {
+        JsonObject peerMsg = body.getJsonObject(S.MESSAGE, new JsonObject());
+        if (peerMsg.isEmpty()) {
+            LOGGER.warn("Packet without message " + body);
             return;
         }
-        String remoteHost;
-        Integer port;
+        String remoteHost = body.getString(S.REMOTE_HOST, "");
+        Integer port = body.getInteger(S.REMOTE_PORT, 0);
+        JsonObject message = body.getJsonObject(S.MESSAGE);
 
-        switch (type) {
-            case PEER_SEND :
-                remoteHost = body.getString(S.REMOTE_HOST, "");
-                port = body.getInteger(S.REMOTE_PORT, 0);
-
-                getorCreateRemoteSocket(remoteHost, port)
-                    .thenAccept(socket -> {
-                        JsonObject message = body.getJsonObject(S.MESSAGE);
-                        
-                        JsonObject peerSendMsg = PeerUtils.createPeerSendMsg(message);
-                        
-                        Buffer socketFrame = PeerUtils.toSocketFrame(peerSendMsg);
-                        LOGGER.info("Send message to " + remoteHost + ":" + port + " of type : " + message.getString(S.TYPE));
-                        socket.write(socketFrame);
-                        msg.reply(new JsonObject());
-                    });
-                break;
-            default :
-                LOGGER.warn("Unknown message type " + type);
-                break;
-        }
+        getorCreateRemoteSocket(remoteHost, port).thenAccept(socket -> {
+            Buffer socketFrame = PeerUtils.toSocketFrame(message);
+            socket.write(socketFrame);
+            LOGGER.info("Sent message to " + remoteHost + ":" + port + " of type : " + message.getString(S.TYPE));
+            msg.reply(new JsonObject());
+        });
     }
 
     private CompletableFuture<NetSocket> getorCreateRemoteSocket(String remoteHost, Integer port) {
@@ -149,29 +136,33 @@ public class MessengerVerticle extends AbstractVerticle {
 
         JsonObject msg = PeerUtils.fromSocketFrame(buffer);
 
-        JsonObject body = msg.getJsonObject(S.BODY, new JsonObject());
         String type = msg.getString(S.TYPE);
-        String address = msg.getString(S.ADDRESS);
 
-        if (type.isEmpty() || address.isEmpty() || body.isEmpty()) {
+        if (type.isEmpty()) {
             LOGGER.info("Incoming message of bad format : ", msg);
             return;
         }
+
         SocketAddress remoteAddress = socket.remoteAddress();
         
         JsonObject peerMsg = new JsonObject()
                 .put(S.REMOTE_HOST, remoteAddress.host())
                 .put(S.REMOTE_PORT, remoteAddress.port())
-                .put(S.TYPE, PeerVerticle.PEER_MSG)
                 .put(S.MESSAGE, msg);
 
-        eventBus.publish(PeerVerticle.NAME, peerMsg);
+        eventBus.publish("REMOTE_PEER_MSG", peerMsg);
     }
 
     private void onPeerClose(NetSocket socket) {
-        String remoteAddr = socket.remoteAddress().toString();
+        SocketAddress remoteAddress = socket.remoteAddress();
+        JsonObject remotePeer = new JsonObject()
+                .put(S.REMOTE_HOST, remoteAddress.host())
+                .put(S.REMOTE_PORT, remoteAddress.port());
+        
+        String remoteAddr = remoteAddress.toString();
         LOGGER.info("Peer disconnected : " + remoteAddr);
         remotes.remove(remoteAddr);
+        eventBus.publish("REMOTE_PEER_DISCONNECTED", remotePeer);
     }
 
 }

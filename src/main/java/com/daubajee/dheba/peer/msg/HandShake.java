@@ -1,7 +1,5 @@
 package com.daubajee.dheba.peer.msg;
 
-import java.util.UUID;
-
 import com.daubajee.dheba.utils.JsonUtils;
 
 import io.vertx.core.json.JsonObject;
@@ -21,8 +19,6 @@ public class HandShake {
     private String agent;
 
     private int bestHeight;
-
-    private UUID uuid;
 
     public String getVersion() {
         return version;
@@ -79,14 +75,6 @@ public class HandShake {
     public void setBestHeight(int bestHeight) {
         this.bestHeight = bestHeight;
     }
-    
-    public UUID getUuid() {
-        return uuid;
-    }
-
-    public void setUuid(UUID uuid) {
-        this.uuid = uuid;
-    }
 
     public JsonObject toJson() {
         return new JsonObject()
@@ -96,8 +84,7 @@ public class HandShake {
                 .put("addrYou", addrYou)
                 .put("addrMe", addrMe)
                 .put("agent", agent)
-                .put("bestHeight", bestHeight)
-                .put("uuid", uuid);
+                .put("bestHeight", bestHeight);
     }
 
     public static HandShake fromJson(JsonObject json) {

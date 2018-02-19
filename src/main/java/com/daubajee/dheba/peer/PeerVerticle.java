@@ -1,9 +1,12 @@
 package com.daubajee.dheba.peer;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -14,8 +17,8 @@ import org.slf4j.LoggerFactory;
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.peer.msg.HandShake;
 
-import io.reactivex.subjects.PublishSubject;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Verticle;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.impl.ConcurrentHashSet;
@@ -48,7 +51,7 @@ public class PeerVerticle extends AbstractVerticle {
 
     private Set<String> activePeers = new ConcurrentHashSet<>();
 
-    PublishSubject<JsonObject> internalBus = PublishSubject.create();
+    private Map<String, Verticle> verticles = new ConcurrentHashMap<>();
 
     @Override
     public void start() throws Exception {
@@ -58,6 +61,8 @@ public class PeerVerticle extends AbstractVerticle {
 
         eventBus.consumer(ADD_NEW_PEER, this::onAddNewPeer);
 
+        eventBus.consumer("REMOTE_PEER_MSG", this::onRemotePeerMsg);
+
         eventBus.consumer(GET_PEER_LIST, this::onGetPeerList);
 
         eventBus.consumer(NAME, this::onMessage);
@@ -65,12 +70,65 @@ public class PeerVerticle extends AbstractVerticle {
         cycle();
     }
 
+    private void onRemotePeerMsg(Message<JsonObject> packet) {
+        JsonObject msg = packet.body();
+        String remoteHost = msg.getString(S.REMOTE_HOST, "");
+        Integer remotePort = msg.getInteger(S.REMOTE_PORT, 0);
+        if (remoteHost.isEmpty() || remotePort == 0) {
+            LOGGER.warn("Bad message ", msg);
+            return;
+        }
+        JsonObject remotePeerMsg = msg.getJsonObject(S.MESSAGE, new JsonObject());
+
+        createVerticleIfNotExists(remoteHost, remotePort).thenAccept(bool -> {
+            String handlerName = remotePeerHandlerName(remoteHost, remotePort);
+            if (!bool) {
+                LOGGER.error("Deployment of " + handlerName + " failed");
+                return;
+            }
+            eventBus.send(handlerName, remotePeerMsg, reply -> {
+                if (reply.failed()) {
+                    LOGGER.error("Processing of " + msg.toString() + " failed " + reply.cause().getMessage());
+                }
+            });
+
+        });
+
+    }
+
+    /**
+     * create a peerServerVerticle if not exists
+     * 
+     * @param remoteHost
+     * @param remotePort
+     */
+    private CompletableFuture<Boolean> createVerticleIfNotExists(String remoteHost, Integer remotePort) {
+        String remotePeerIdentifier = remotePeerHandlerName(remoteHost, remotePort);
+        boolean containsKey = verticles.containsKey(remotePeerIdentifier);
+        if (!containsKey) {
+            LOGGER.info("No handler exists for " + remoteHost + ":" + remotePort + ", creating one");
+            PeerServerHandlerVerticle peerServerVerticle = new PeerServerHandlerVerticle(remoteHost, remotePort);
+            CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
+            vertx.deployVerticle(peerServerVerticle, handler -> {
+                if (handler.failed()) {
+                    result.complete(false);
+                } else {
+                    result.complete(true);
+                }
+            });
+            verticles.put(remotePeerIdentifier, peerServerVerticle);
+            return result;
+        }
+        return CompletableFuture.completedFuture(true);
+    }
+
+    private static String remotePeerHandlerName(String remoteHost, Integer remotePort) {
+        return "handler-" + remoteHost + ":" + remotePort;
+    }
+
     private void onMessage(Message<JsonObject> msg) {
         JsonObject body = msg.body();
         String type = body.getString(S.TYPE, "");
-        if (type.isEmpty()) {
-            return;
-        }
         switch (type) {
             case NEW_PEER_CONNECTED :
                 onNewPeerConnected(msg);
@@ -99,8 +157,9 @@ public class PeerVerticle extends AbstractVerticle {
                         .filter(peer -> !activePeers.contains(peer.identifier()))
                     .findFirst()
                     .ifPresent(peer -> {
-                        LOGGER.info("Sending handshake to a unconnected peer");
-                        sendHandshake(peer.getHostAddress(), peer.getPort());
+                            LOGGER.info("Sending handshake to an unconnected peer");
+                            // sendHandshake(peer.getHostAddress(),
+                            // peer.getPort());
                     });
             }
         });
@@ -134,19 +193,59 @@ public class PeerVerticle extends AbstractVerticle {
             return;
         }
 
-        RemotePeer remotePeer = new RemotePeer(remotePort, remoteHost);
-        remotePeers.put(remotePeer.identifier(), remotePeer);
+        try {
+            String remoteAddress = InetAddress.getByName(remoteHost).getHostAddress();
+            LOGGER.info("Adding new peer " + remoteAddress + ":" + remotePort);
+            newClientVerticle(remoteAddress, remotePort);
+        } catch (UnknownHostException e) {
+            LOGGER.error("Unknown host '{}'", remoteHost);
+        }
+    }
 
-        sendHandshake(remotePeer.getHostAddress(), remotePeer.getPort());
+    private void newClientVerticle(String remoteHost, Integer remotePort) {
+
+        JsonObject handShakeMsg = createHandShakeMessage(remoteHost, remotePort, config.getHostname(),
+                config.getP2PPort());
+
+        PeerClientHandlerVerticle peerClientVerticle = new PeerClientHandlerVerticle(remoteHost, remotePort);
+
+        CompletableFuture<Boolean> deploymentResult = new CompletableFuture<>();
+        vertx.deployVerticle(peerClientVerticle, handler -> {
+            if (handler.failed()) {
+                LOGGER.error("Deployment of PeerClientVerticle failed");
+                deploymentResult.complete(false);
+            }
+            LOGGER.info("PeerClientVerticle deployed");
+            deploymentResult.complete(true);
+        });
+
+        deploymentResult
+            .thenAccept(bool -> {
+                if (!bool) {
+                    return;
+                }
+                String handlerName = remotePeerHandlerName(remoteHost, remotePort);
+                verticles.put(handlerName, peerClientVerticle);
+                
+                JsonObject adminCmd = new JsonObject()
+                        .put(S.TYPE, "SEND_HANDSHAKE")
+                        .put(S.CONTENT, handShakeMsg);
+                LOGGER.info("Sending " + adminCmd.toString());
+                eventBus.send(peerClientVerticle.getAdminAddress(), adminCmd, reply -> {
+                    if (reply.failed()) {
+                        LOGGER.error("Send " + adminCmd.toString() + " failed : " + reply.cause().getLocalizedMessage());
+                    }
+                });
+            });
+
     }
 
     private void sendHandshake(String remoteHost, Integer remotePort) {
 
         JsonObject handShakeMsg = createHandShakeMessage(remoteHost, remotePort, config.getHostname(),
                 config.getP2PPort());
-        JsonObject peerPacket = createRemotePeerPacket("HANDSHAKE", handShakeMsg);
-
-        JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
+        JsonObject peerPacket = PeerUtils.createRemotePeerPacket("HANDSHAKE", handShakeMsg);
+        JsonObject verticleMsgPacket = PeerUtils.createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
 
         eventBus.send(MessengerVerticle.NAME, verticleMsgPacket, result -> {
             if (result.failed()) {
@@ -170,8 +269,8 @@ public class PeerVerticle extends AbstractVerticle {
         getPeerOrCreate(remotePort, remoteHost);
 
         JsonObject handShakeMsg = createHandShakeMessage(remoteHost, remotePort, config.getHostname(), config.getP2PPort());
-        JsonObject peerPacket = createRemotePeerPacket("HANDSHAKE", handShakeMsg);
-        JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
+        JsonObject peerPacket = PeerUtils.createRemotePeerPacket("HANDSHAKE", handShakeMsg);
+        JsonObject verticleMsgPacket = PeerUtils.createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
         eventBus.publish(MessengerVerticle.NAME, verticleMsgPacket);
     }
 
@@ -183,7 +282,6 @@ public class PeerVerticle extends AbstractVerticle {
         LOGGER.info("Received PEER_MSG : " + body.toString());
 
         JsonObject peerPacket = body.getJsonObject(S.MESSAGE, new JsonObject());
-
 
         String peerPacketType = peerPacket.getString(S.TYPE, "");
         if (!"MESSAGE".equals(peerPacketType)) {
@@ -218,8 +316,9 @@ public class PeerVerticle extends AbstractVerticle {
                 break;
             case "GET_PEER_LIST" :
                 JsonObject peers = getRemotePeersJson();
-                JsonObject peerListReply = createRemotePeerPacket("PEER_LIST", peers);
-                JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerListReply);
+                JsonObject peerListReply = PeerUtils.createRemotePeerPacket("PEER_LIST", peers);
+                JsonObject verticleMsgPacket = PeerUtils.createPeerSendVerticlePacket(remoteHost, remotePort,
+                        peerListReply);
                 eventBus.send(MessengerVerticle.NAME, verticleMsgPacket);
                 break;
             case "PEER_LIST" :
@@ -258,8 +357,8 @@ public class PeerVerticle extends AbstractVerticle {
     }
 
     private void sendHandshakeAct(String remoteHost, int remotePort) {
-        JsonObject handshakeReply = createRemotePeerPacket("HANDSHAKE_ACK", new JsonObject());
-        JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, handshakeReply);
+        JsonObject handshakeReply = PeerUtils.createRemotePeerPacket("HANDSHAKE_ACK", new JsonObject());
+        JsonObject verticleMsgPacket = PeerUtils.createPeerSendVerticlePacket(remoteHost, remotePort, handshakeReply);
         eventBus.send(MessengerVerticle.NAME, verticleMsgPacket);
         LOGGER.info("HANDSHAKE_ACK sent");
     }
@@ -310,19 +409,6 @@ public class PeerVerticle extends AbstractVerticle {
 
     }
     
-    private JsonObject createRemotePeerPacket(String type, JsonObject content) {
-        return new JsonObject()
-            .put(S.TYPE, type)
-            .put(S.CONTENT, content);
-    }
-
-    private JsonObject createPeerSendVerticlePacket(String remoteHost, Integer remotePort, JsonObject handShakeMsg) {
-        return new JsonObject()
-                .put(S.REMOTE_HOST, remoteHost)
-                .put(S.REMOTE_PORT, remotePort)
-                .put(S.TYPE, MessengerVerticle.PEER_SEND)
-                .put(S.MESSAGE, handShakeMsg);
-    }
 
     private JsonObject createHandShakeMessage(String remoteHost, Integer remotePort, String selfHost, Integer selfPort) {
         HandShake handShake = new HandShake();
@@ -333,7 +419,6 @@ public class PeerVerticle extends AbstractVerticle {
         handShake.setServices("NODE BETA ALPHA");
         handShake.setTimestamp(System.currentTimeMillis());
         handShake.setVersion("0.1");
-        handShake.setUuid(PEER_UUID);
         return handShake.toJson();
     }
 
