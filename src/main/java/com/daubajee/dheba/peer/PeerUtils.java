@@ -38,4 +38,20 @@ public class PeerUtils {
                 .put(S.ADDRESS, "*")
                 .put(S.BODY, body);
     }
+    
+    public static JsonObject createRemotePeerPacket(String type, JsonObject content) {
+        return new JsonObject()
+            .put(S.TYPE, type)
+            .put(S.CONTENT, content);
+    }
+
+    public static JsonObject createPeerSendVerticlePacket(String remoteHost, Integer remotePort,
+            JsonObject handShakeMsg) {
+        return new JsonObject()
+                .put(S.REMOTE_HOST, remoteHost)
+                .put(S.REMOTE_PORT, remotePort)
+                .put(S.TYPE, MessengerVerticle.PEER_SEND)
+                .put(S.MESSAGE, handShakeMsg);
+    }
+
 }
