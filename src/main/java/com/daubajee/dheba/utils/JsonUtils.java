@@ -4,15 +4,13 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
-import com.daubajee.dheba.peer.RemotePeerVerticle;
-
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 
 public class JsonUtils {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RemotePeerVerticle.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(JsonUtils.class);
 
     private static final List<Class<?>> KNOWN_TYPES = Arrays.asList(Integer.class, int.class, Boolean.class,
             boolean.class, Long.class, long.class, String.class);
