@@ -19,11 +19,11 @@ import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 import io.vertx.core.net.SocketAddress;
 
-public class RemotePeerVerticle extends AbstractVerticle {
+public class MessengerVerticle extends AbstractVerticle {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RemotePeerVerticle.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MessengerVerticle.class);
 
-    static final String NAME = RemotePeerVerticle.class.getSimpleName();
+    static final String NAME = MessengerVerticle.class.getSimpleName();
 
     static final String PEER_CONNECT = "PEER_CONNECT";
     static final String PEER_SEND = "PEER_SEND";
@@ -34,7 +34,7 @@ public class RemotePeerVerticle extends AbstractVerticle {
 
     private Config config;
 
-    public RemotePeerVerticle() {
+    public MessengerVerticle() {
         config = Config.instance();
     }
 

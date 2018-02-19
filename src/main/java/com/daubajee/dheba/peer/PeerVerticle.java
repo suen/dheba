@@ -3,6 +3,7 @@ package com.daubajee.dheba.peer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.peer.msg.HandShake;
 
+import io.reactivex.subjects.PublishSubject;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
@@ -32,6 +34,8 @@ public class PeerVerticle extends AbstractVerticle {
 
     public static final String GET_PEER_LIST = "GET_PEER_LIST";
 
+    private static final UUID PEER_UUID = UUID.randomUUID();
+
     private EventBus eventBus;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PeerVerticle.class);
@@ -44,9 +48,11 @@ public class PeerVerticle extends AbstractVerticle {
 
     private Set<String> activePeers = new ConcurrentHashSet<>();
 
+    PublishSubject<JsonObject> internalBus = PublishSubject.create();
+
     @Override
     public void start() throws Exception {
-        vertx.deployVerticle(new RemotePeerVerticle());
+        vertx.deployVerticle(new MessengerVerticle());
 
         eventBus = vertx.eventBus();
 
@@ -90,7 +96,7 @@ public class PeerVerticle extends AbstractVerticle {
             if (activePeers.size() != config.getMaxPeerConnections()) {
                 remotePeers.values()
                     .stream()
-                    .filter(peer -> !activePeers.contains(peer.identifier()))
+                        .filter(peer -> !activePeers.contains(peer.identifier()))
                     .findFirst()
                     .ifPresent(peer -> {
                         LOGGER.info("Sending handshake to a unconnected peer");
@@ -142,7 +148,7 @@ public class PeerVerticle extends AbstractVerticle {
 
         JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
 
-        eventBus.send(RemotePeerVerticle.NAME, verticleMsgPacket, result -> {
+        eventBus.send(MessengerVerticle.NAME, verticleMsgPacket, result -> {
             if (result.failed()) {
                 LOGGER.warn("Connection to " + remoteHost + ":" + remotePort + " failed");
                 return;
@@ -166,7 +172,7 @@ public class PeerVerticle extends AbstractVerticle {
         JsonObject handShakeMsg = createHandShakeMessage(remoteHost, remotePort, config.getHostname(), config.getP2PPort());
         JsonObject peerPacket = createRemotePeerPacket("HANDSHAKE", handShakeMsg);
         JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerPacket);
-        eventBus.publish(RemotePeerVerticle.NAME, verticleMsgPacket);
+        eventBus.publish(MessengerVerticle.NAME, verticleMsgPacket);
     }
 
     private void onPeerMsg(Message<JsonObject> verticlePacket) {
@@ -214,7 +220,7 @@ public class PeerVerticle extends AbstractVerticle {
                 JsonObject peers = getRemotePeersJson();
                 JsonObject peerListReply = createRemotePeerPacket("PEER_LIST", peers);
                 JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, peerListReply);
-                eventBus.send(RemotePeerVerticle.NAME, verticleMsgPacket);
+                eventBus.send(MessengerVerticle.NAME, verticleMsgPacket);
                 break;
             case "PEER_LIST" :
                 JsonArray newPeerListArray = content.getJsonArray("peers", new JsonArray());
@@ -254,7 +260,7 @@ public class PeerVerticle extends AbstractVerticle {
     private void sendHandshakeAct(String remoteHost, int remotePort) {
         JsonObject handshakeReply = createRemotePeerPacket("HANDSHAKE_ACK", new JsonObject());
         JsonObject verticleMsgPacket = createPeerSendVerticlePacket(remoteHost, remotePort, handshakeReply);
-        eventBus.send(RemotePeerVerticle.NAME, verticleMsgPacket);
+        eventBus.send(MessengerVerticle.NAME, verticleMsgPacket);
         LOGGER.info("HANDSHAKE_ACK sent");
     }
 
@@ -314,7 +320,7 @@ public class PeerVerticle extends AbstractVerticle {
         return new JsonObject()
                 .put(S.REMOTE_HOST, remoteHost)
                 .put(S.REMOTE_PORT, remotePort)
-                .put(S.TYPE, RemotePeerVerticle.PEER_SEND)
+                .put(S.TYPE, MessengerVerticle.PEER_SEND)
                 .put(S.MESSAGE, handShakeMsg);
     }
 
@@ -326,7 +332,8 @@ public class PeerVerticle extends AbstractVerticle {
         handShake.setBestHeight(1);
         handShake.setServices("NODE BETA ALPHA");
         handShake.setTimestamp(System.currentTimeMillis());
-        handShake.setVersion("0.42");
+        handShake.setVersion("0.1");
+        handShake.setUuid(PEER_UUID);
         return handShake.toJson();
     }
 
