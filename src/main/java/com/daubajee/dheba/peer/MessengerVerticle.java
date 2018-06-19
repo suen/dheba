@@ -1,13 +1,17 @@
 package com.daubajee.dheba.peer;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.daubajee.dheba.Config;
+import com.daubajee.dheba.Topic;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.buffer.Buffer;
@@ -21,12 +25,11 @@ import io.vertx.core.net.SocketAddress;
 
 public class MessengerVerticle extends AbstractVerticle {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(MessengerVerticle.class);
-
+	private static AtomicInteger instanceCount = new AtomicInteger(0);
+    
+	private final Logger LOGGER = LoggerFactory.getLogger(MessengerVerticle.class + "-" +instanceCount.incrementAndGet());
+    
     static final String NAME = MessengerVerticle.class.getSimpleName();
-
-    static final String PEER_CONNECT = "PEER_CONNECT";
-    static final String PEER_SEND = "PEER_SEND";
 
     private Map<String, NetSocket> remotes = new ConcurrentHashMap<>();
 
@@ -34,51 +37,71 @@ public class MessengerVerticle extends AbstractVerticle {
 
     private Config config;
 
-    public MessengerVerticle() {
-        config = Config.instance();
+	private int p2pPort = 0;
+
+    public MessengerVerticle(Config config) {
+        this.config = config;
     }
 
     @Override
     public void start() throws Exception {
 
         eventBus = vertx.eventBus();
-
-        eventBus.consumer("REMOTE_PEER_SEND", this::onPeerSend);
-
+        
         NetServer server = vertx.createNetServer();
 
         server.connectHandler(this::onNewClientPeerConnect);
 
-        int p2PPort = config.getP2PPort();
-        server.listen(p2PPort, res -> {
+        p2pPort = config.getP2PPort();
+        server.listen(p2pPort, res -> {
             if (res.failed()) {
-                LOGGER.error("Binding on port " + p2PPort + " failed", res.cause());
+                LOGGER.error("Binding on port " + p2pPort + " failed", res.cause());
                 return;
             }
-            LOGGER.info("P2P listening on " + p2PPort);
+            LOGGER.info("P2P listening on " + p2pPort);
         });
+
+        eventBus.consumer(Topic.REMOTE_PEER_OUTBOX, this::onRemotePeerOutbox);
     }
 
-    private void onPeerSend(Message<JsonObject> msg) {
+    private void onRemotePeerOutbox(Message<JsonObject> msg) {
         JsonObject body = msg.body();
-        JsonObject peerMsg = body.getJsonObject(S.MESSAGE, new JsonObject());
-        if (peerMsg.isEmpty()) {
-            LOGGER.warn("Packet without message " + body);
+        RemotePeerPacket packet = RemotePeerPacket.from(body);
+        if (!packet.isValid()) {
+            LOGGER.warn("Remote Packet Invalid " + body);
             return;
         }
-        String remoteHost = body.getString(S.REMOTE_HOST, "");
-        Integer port = body.getInteger(S.REMOTE_PORT, 0);
-        JsonObject message = body.getJsonObject(S.MESSAGE);
 
-        getorCreateRemoteSocket(remoteHost, port).thenAccept(socket -> {
-            Buffer socketFrame = PeerUtils.toSocketFrame(message);
+        String hostAddress = packet.getRemoteHostAddress();
+        Integer port = packet.getRemoteHostPort();
+        JsonObject content = packet.getContent();
+
+        boolean selfAddressed = checkifSelfAddressed(hostAddress, port);
+        if (selfAddressed) {
+        	LOGGER.info("Self addressed " + body);
+        	return;
+        }
+        
+        getorCreateRemoteSocket(hostAddress, port).thenAccept(socket -> {
+            Buffer socketFrame = PeerUtils.toSocketFrame(content);
             socket.write(socketFrame);
-            LOGGER.info("Sent message to " + remoteHost + ":" + port + " of type : " + message.getString(S.TYPE));
+            LOGGER.info("Message sent to " + hostAddress + ":" + port);
             msg.reply(new JsonObject());
         });
     }
 
-    private CompletableFuture<NetSocket> getorCreateRemoteSocket(String remoteHost, Integer port) {
+    private boolean checkifSelfAddressed(String hostAddress, Integer port) {
+		try {
+			InetAddress address = InetAddress.getByName(hostAddress);
+			String ip = address.getHostAddress();
+			return ip.startsWith("127.") && port == p2pPort;
+		} catch (UnknownHostException e) {
+		}
+    	
+		return false;
+	}
+
+	private CompletableFuture<NetSocket> getorCreateRemoteSocket(String remoteHost, Integer port) {
         CompletableFuture<NetSocket> netSocketContainer = new CompletableFuture<>();
 
         String remoteAddress = remoteHost + ":" + port;
@@ -126,43 +149,37 @@ public class MessengerVerticle extends AbstractVerticle {
         remotes.put(remoteAddressStr, socket);
 
         LOGGER.info("New Client peer connected : " + remoteAddressStr);
+
+        RemotePeerEvent event = new RemotePeerEvent(remoteAddress.host(), remoteAddress.port(), RemotePeerEvent.CONNECTED);
+        eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
     }
 
     private void onPeerMessage(Buffer buffer, NetSocket socket) {
 
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(NAME + " received : ", buffer.toString());
+            LOGGER.debug("Packet received : ", buffer.toString());
         }
 
         JsonObject msg = PeerUtils.fromSocketFrame(buffer);
 
-        String type = msg.getString(S.TYPE);
-
-        if (type.isEmpty()) {
-            LOGGER.info("Incoming message of bad format : ", msg);
-            return;
-        }
-
         SocketAddress remoteAddress = socket.remoteAddress();
         
-        JsonObject peerMsg = new JsonObject()
-                .put(S.REMOTE_HOST, remoteAddress.host())
-                .put(S.REMOTE_PORT, remoteAddress.port())
-                .put(S.MESSAGE, msg);
+        RemotePeerPacket packet = new RemotePeerPacket(remoteAddress.host(), remoteAddress.port(), msg);
 
-        eventBus.publish("REMOTE_PEER_MSG", peerMsg);
+        eventBus.publish(Topic.REMOTE_PEER_INBOX, packet.toJson());
     }
 
     private void onPeerClose(NetSocket socket) {
         SocketAddress remoteAddress = socket.remoteAddress();
-        JsonObject remotePeer = new JsonObject()
-                .put(S.REMOTE_HOST, remoteAddress.host())
-                .put(S.REMOTE_PORT, remoteAddress.port());
         
         String remoteAddr = remoteAddress.toString();
-        LOGGER.info("Peer disconnected : " + remoteAddr);
         remotes.remove(remoteAddr);
-        eventBus.publish("REMOTE_PEER_DISCONNECTED", remotePeer);
+
+        LOGGER.info("Peer disconnected : " + remoteAddr);
+        RemotePeerEvent event = new RemotePeerEvent(remoteAddress.host(), remoteAddress.port(),
+                RemotePeerEvent.DISCONNECTED);
+
+        eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
     }
 
 }

@@ -1,11 +1,11 @@
 package com.daubajee.dheba;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.assertThat;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Collection;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestConfig {
 
@@ -18,8 +18,7 @@ public class TestConfig {
         Config config = new Config();
 
         Collection<String> seeds = config.getInitialPeerSeeds();
-
-        assertThat(seeds.size(), equalTo(4));
+        assertEquals(seeds.size(), 4);
     }
 
     @Test
@@ -30,9 +29,9 @@ public class TestConfig {
 
         Config config = new Config();
 
-        assertThat(config.getP2PPort(), equalTo(10245));
-        assertThat(config.getHttpPort(), equalTo(8989));
-        assertThat(config.getSSHPort(), equalTo(6969));
+        assertEquals(config.getP2PPort(), 10245);
+        assertEquals(config.getHttpPort(), 8989);
+        assertEquals(config.getSSHPort(), 6969);
     }
 
 }

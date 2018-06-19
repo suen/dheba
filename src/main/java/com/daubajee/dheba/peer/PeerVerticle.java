@@ -55,7 +55,7 @@ public class PeerVerticle extends AbstractVerticle {
 
     @Override
     public void start() throws Exception {
-        vertx.deployVerticle(new MessengerVerticle());
+        vertx.deployVerticle(new MessengerVerticle(config));
 
         eventBus = vertx.eventBus();
 

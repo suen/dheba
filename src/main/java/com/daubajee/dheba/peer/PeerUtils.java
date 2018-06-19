@@ -50,7 +50,7 @@ public class PeerUtils {
         return new JsonObject()
                 .put(S.REMOTE_HOST, remoteHost)
                 .put(S.REMOTE_PORT, remotePort)
-                .put(S.TYPE, MessengerVerticle.PEER_SEND)
+                .put(S.TYPE, "PEER_SEND")
                 .put(S.MESSAGE, handShakeMsg);
     }
 

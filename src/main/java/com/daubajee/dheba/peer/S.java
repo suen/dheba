@@ -4,7 +4,11 @@ public class S {
 
     public static final String REMOTE_HOST = "remoteHost";
 
+    public static final String REMOTE_HOST_ADDRESS = "remoteHostAddress";
+
     public static final String REMOTE_PORT = "remotePort";
+
+    public static final String REMOTE_HOST_PORT = "remoteHostPort";
 
     public static final String MESSAGE = "message";
 
