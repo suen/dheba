@@ -14,6 +14,8 @@ public class RemotePeerEvent {
 
     public static final String DISCONNECTED = "DISCONNECTED";
 
+    public static final String NEW_PEER = "NEW_PEER";
+
     public RemotePeerEvent(String remoteHostAddress, int remoteHostPort, String type) {
         this.remoteHostAddress = remoteHostAddress;
         this.remoteHostPort = remoteHostPort;

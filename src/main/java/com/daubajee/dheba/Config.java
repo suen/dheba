@@ -33,21 +33,26 @@ public class Config {
 
     public static final Integer MAX_PEER_CONNECTIONS = 2;
 
+    private final int httpPort = getFromSysEnvOrDefault(P_HTTP_PORT, DEFAULT_HTTP_PORT);
+
+    private final int p2pPort = getFromSysEnvOrDefault(P_P2P_PORT, DEFAULT_P2P_PORT);
+
+    private final int sshPort = getFromSysEnvOrDefault(P_SSH_PORT, DEFAULT_SSH_PORT);
+
     public Config() {
 
     }
 
     public int getHttpPort() {
-        Integer port = getFromSysEnvOrDefault(P_HTTP_PORT, DEFAULT_HTTP_PORT);
-        return port;
+        return httpPort;
     }
 
     public int getSSHPort() {
-        return getFromSysEnvOrDefault(P_SSH_PORT, DEFAULT_SSH_PORT);
+        return sshPort;
     }
 
     public int getP2PPort() {
-        return getFromSysEnvOrDefault(P_P2P_PORT, DEFAULT_P2P_PORT);
+        return p2pPort;
     }
 
     public String getHostname() {

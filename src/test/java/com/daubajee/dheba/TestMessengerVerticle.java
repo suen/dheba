@@ -32,22 +32,24 @@ public class TestMessengerVerticle {
 		EventBus eventBus = vertx.eventBus();
 
 
-		Config config = Config.instance();
 		System.setProperty(Config.P_P2P_PORT, "42041");
-		MessengerVerticle messengerVerticleA = new MessengerVerticle(config);
-		MessengerVerticle messengerVerticleB = new MessengerVerticle(config);
+        Config configA = new Config();
+        MessengerVerticle messengerVerticleA = new MessengerVerticle(configA);
+
+        System.setProperty(Config.P_P2P_PORT, "42042");
+        Config configB = new Config();
+        MessengerVerticle messengerVerticleB = new MessengerVerticle(configB);
 
 		vertx.deployVerticle(messengerVerticleA, testContext.succeeding(handler -> {
 			verticleAcheck.flag();
-			System.setProperty(Config.P_P2P_PORT, "42042");
+
 			vertx.deployVerticle(messengerVerticleB, testContext.succeeding(h -> {
 				verticleBcheck.flag();
-				
 				RemotePeerPacket packet = new RemotePeerPacket("localhost", 42042, new JsonObject().put("TYPE", "TEST"));
 				eventBus.publish(Topic.REMOTE_PEER_OUTBOX, packet.toJson());
 			}));
 		}));
-		
+
 		eventBus.consumer(Topic.REMOTE_PEER_INBOX, handler -> {
 			assertTrue(handler.body() != null);
 			msgRevCheck.flag();
