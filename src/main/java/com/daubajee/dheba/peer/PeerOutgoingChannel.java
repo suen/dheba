@@ -24,6 +24,8 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 
     private MessageConsumer<JsonObject> consumer;
 
+    private State currentState = State.INIT;
+    
     public PeerOutgoingChannel(String remoteHostAddress, int remoteHostPort) {
         this.remoteHostAddress = remoteHostAddress;
         this.remoteHostPort = remoteHostPort;
@@ -39,10 +41,12 @@ public class PeerOutgoingChannel extends AbstractVerticle {
         consumer = eventBus.consumer(getRemotePeerInboxTopic(), this::onInboxMessage);
 
         vertx.timerStream(1000).handler(handler -> {
-            JsonObject handshakeMsg = createHandShakeMessage(remoteHostAddress, remoteHostPort, "localhost", 8080);
-            RemotePeerPacket packet = new RemotePeerPacket(remoteHostAddress, remoteHostPort, handshakeMsg);
+            JsonObject handshakeMsgContent = createHandShakeMessage(remoteHostAddress, remoteHostPort, "localhost", 8080);
+            PeerMessage handshakeMsg = new PeerMessage(PeerMessage.HANDSHAKE, handshakeMsgContent);
+            RemotePeerPacket packet = new RemotePeerPacket(remoteHostAddress, remoteHostPort, handshakeMsg.toJson());
             eventBus.send(Topic.REMOTE_PEER_OUTBOX, packet.toJson());
             LOGGER.info("Handshake Msg send to {}:{}", remoteHostAddress, remoteHostPort);
+            currentState = State.WAIT_HANDSHAKE_ACK;
         });
     }
 
@@ -56,10 +60,35 @@ public class PeerOutgoingChannel extends AbstractVerticle {
     }
 
     private void onInboxMessage(Message<JsonObject> msg) {
-        LOGGER.info("Msg received {}", msg);
+    	JsonObject body = msg.body();
+        PeerMessage peerMsg = PeerMessage.from(body);
+        String type = peerMsg.getType();
+        
+        LOGGER.info("Message of type {} received on {}", type, getRemotePeerInboxTopic());
+        switch (type) {
+			case PeerMessage.HANDSHAKE_ACK:
+				onHandShakeAck(peerMsg.getContent());
+				break;
+	
+			default:
+				LOGGER.warn("Unrecognized type {}", peerMsg.toJson());
+				break;
+		}
     }
 
-    private JsonObject createHandShakeMessage(String remoteHost, Integer remotePort, String selfHost,
+    private void onHandShakeAck(JsonObject content) {
+		if (currentState == State.WAIT_HANDSHAKE_ACK) {
+			currentState = State.READY;
+			
+			RemotePeerEvent event = new RemotePeerEvent(remoteHostAddress, remoteHostPort, RemotePeerEvent.HANDSHAKED);
+			eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
+		}
+		else {
+			LOGGER.warn(PeerMessage.HANDSHAKE_ACK + " already received");
+		}
+	}
+
+	private JsonObject createHandShakeMessage(String remoteHost, Integer remotePort, String selfHost,
             Integer selfPort) {
         HandShake handShake = new HandShake();
         handShake.setAddrMe(selfHost + ":" + selfPort);
@@ -70,5 +99,15 @@ public class PeerOutgoingChannel extends AbstractVerticle {
         handShake.setTimestamp(System.currentTimeMillis());
         handShake.setVersion("0.1");
         return handShake.toJson();
+    }
+    
+	private static enum State {
+    	
+    	INIT,
+    	
+    	WAIT_HANDSHAKE_ACK,
+    	
+    	READY
+    	
     }
 }

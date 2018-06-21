@@ -1,5 +1,6 @@
 package com.daubajee.dheba.peer;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,6 +22,8 @@ public class PeerManagerVerticle extends AbstractVerticle {
     private final Logger LOGGER = LoggerFactory.getLogger(PeerManagerVerticle.class);
 
     private Map<String, String> deployedVerticles = new ConcurrentHashMap<>();
+    
+    private Map<String, Instant> readyPeers = new ConcurrentHashMap<>();
 
     @Override
     public void start() throws Exception {
@@ -42,7 +45,8 @@ public class PeerManagerVerticle extends AbstractVerticle {
             LOGGER.warn("Invalid {} event : {}", Topic.REMOTE_PEER_EVENTS, remotePeerEvent);
             return;
         }
-
+        LOGGER.info("Message of type {} received on {}", remotePeerEvent.getType(), Topic.REMOTE_PEER_EVENTS);
+        
         String type = remotePeerEvent.getType();
         switch (type) {
             case RemotePeerEvent.CONNECTED :
@@ -56,6 +60,10 @@ public class PeerManagerVerticle extends AbstractVerticle {
                 deployPeerOutgoingChannel(remotePeerEvent);
                 break;
 
+            case RemotePeerEvent.HANDSHAKED :
+            	addToReadyPeers(remotePeerEvent);
+            	break;
+            	
             default :
                 LOGGER.warn("{} Event type unrecognized : {}", Topic.REMOTE_PEER_EVENTS, type);
                 break;
@@ -63,7 +71,8 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
     }
 
-    private void onRemotePeerMessage(Message<JsonObject> msg) {
+
+	private void onRemotePeerMessage(Message<JsonObject> msg) {
 
         RemotePeerPacket packet = RemotePeerPacket.from(msg.body());
 
@@ -75,10 +84,10 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
         if (!deployedVerticles.containsKey(remotePeerId)) {
             LOGGER.info("No verticle deployed for {}, waiting..", remotePeerId);
-            vertx.timerStream(1000).handler(handler -> onRemotePeerMessage(msg));
+            vertx.setTimer(1000, handler -> onRemotePeerMessage(msg));
         }
 
-        eventBus.send(remotePeerId + "-INBOX", msg.body());
+        eventBus.send(remotePeerId + "-INBOX", packet.getContent());
     }
 
     private void deployPeerIncomingChannel(RemotePeerEvent remotePeerEvent) {
@@ -94,11 +103,18 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
         deployVerticle(outgoing, remotePeerId(remotePeerEvent));
     }
+    
+    private void addToReadyPeers(RemotePeerEvent remotePeerEvent) {
+    	String remotePeerId = remotePeerId(remotePeerEvent);
+    	readyPeers.put(remotePeerId, Instant.now());
+	}
 
     private void deployVerticle(Verticle incomingChannel, String remotePeerId) {
         vertx.deployVerticle(incomingChannel, handler -> {
             if (handler.failed()) {
                 LOGGER.error("Deployment of a Verticle {} failed", incomingChannel.getClass().getSimpleName());
+                LOGGER.error("Throwable", handler.cause());
+                return;
             }
             String id = handler.result();
             deployedVerticles.put(remotePeerId, id);
@@ -111,6 +127,7 @@ public class PeerManagerVerticle extends AbstractVerticle {
             String id = deployedVerticles.remove(remotePeerId);
             vertx.undeploy(id);
         }
+        readyPeers.remove(remotePeerId);
     }
 
     private static String remotePeerId(RemotePeerEvent remotePeerEvent) {

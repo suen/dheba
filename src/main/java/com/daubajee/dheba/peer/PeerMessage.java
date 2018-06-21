@@ -8,6 +8,10 @@ public class PeerMessage {
 
     private final JsonObject content;
 
+    public static final String HANDSHAKE = "HANDSHAKE";
+    
+    public static final String HANDSHAKE_ACK = "HANDSHAKE_ACK";
+    
     public PeerMessage(String type, JsonObject content) {
         this.type = type;
         this.content = content;
