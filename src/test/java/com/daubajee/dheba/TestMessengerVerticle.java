@@ -31,18 +31,15 @@ public class TestMessengerVerticle {
 		Vertx vertx = Vertx.vertx();
 		EventBus eventBus = vertx.eventBus();
 
+        MessengerVerticle messengerVerticleA = new MessengerVerticle();
 
-		System.setProperty(Config.P_P2P_PORT, "42041");
-        Config configA = new Config();
-        MessengerVerticle messengerVerticleA = new MessengerVerticle(configA);
+        MessengerVerticle messengerVerticleB = new MessengerVerticle();
 
         System.setProperty(Config.P_P2P_PORT, "42042");
-        Config configB = new Config();
-        MessengerVerticle messengerVerticleB = new MessengerVerticle(configB);
-
 		vertx.deployVerticle(messengerVerticleA, testContext.succeeding(handler -> {
 			verticleAcheck.flag();
 
+            System.setProperty(Config.P_P2P_PORT, "42041");
 			vertx.deployVerticle(messengerVerticleB, testContext.succeeding(h -> {
 				verticleBcheck.flag();
 				RemotePeerPacket packet = new RemotePeerPacket("localhost", 42042, new JsonObject().put("TYPE", "TEST"));

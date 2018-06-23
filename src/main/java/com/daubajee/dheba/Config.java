@@ -6,9 +6,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import io.vertx.config.ConfigRetriever;
+import io.vertx.config.ConfigRetrieverOptions;
+import io.vertx.config.ConfigStoreOptions;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 
@@ -33,26 +40,53 @@ public class Config {
 
     public static final Integer MAX_PEER_CONNECTIONS = 2;
 
-    private final int httpPort = getFromSysEnvOrDefault(P_HTTP_PORT, DEFAULT_HTTP_PORT);
+    private final JsonObject conf;
 
-    private final int p2pPort = getFromSysEnvOrDefault(P_P2P_PORT, DEFAULT_P2P_PORT);
+    public Config(Vertx vertx) {
 
-    private final int sshPort = getFromSysEnvOrDefault(P_SSH_PORT, DEFAULT_SSH_PORT);
+        JsonObject defaultValue = new JsonObject()
+                .put(P_HTTP_PORT, DEFAULT_HTTP_PORT)
+                .put(P_SSH_PORT, DEFAULT_SSH_PORT)
+                .put(P_P2P_PORT, DEFAULT_P2P_PORT);
+        
+        ConfigStoreOptions jsonStore = new ConfigStoreOptions()
+                .setType("json")
+                .setConfig(defaultValue);
+        
+        ConfigStoreOptions envStore = new ConfigStoreOptions()
+                .setType("env");
+        
+        ConfigStoreOptions sysPropStore = new ConfigStoreOptions()
+                .setType("sys")
+                .setConfig(new JsonObject().put("cache", false));
+        ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(jsonStore).addStore(envStore)
+                .addStore(sysPropStore);
 
-    public Config() {
+        ConfigRetriever configRetriever = ConfigRetriever.create(vertx, options);
+
+        CompletableFuture<JsonObject> future = new CompletableFuture<>();
+        configRetriever.getConfig(h -> {
+            future.complete(h.result());
+        });
+
+        try {
+            conf = future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new IllegalStateException(e);
+        }
 
     }
 
     public int getHttpPort() {
-        return httpPort;
+        return conf.getInteger(P_HTTP_PORT);
     }
 
     public int getSSHPort() {
-        return sshPort;
+        return conf.getInteger(P_SSH_PORT);
     }
 
     public int getP2PPort() {
-        return p2pPort;
+        return conf.getInteger(P_P2P_PORT);
     }
 
     public String getHostname() {
@@ -64,7 +98,7 @@ public class Config {
     }
 
     public Collection<String> getInitialPeerSeeds() {
-        String seeds = getFromSysEnvOrDefault(P_P2P_SEEDS, "");
+        String seeds = conf.getString(P_P2P_SEEDS, "");
         if (seeds.isEmpty()) {
             return new ArrayList<>(0);
         }
@@ -84,7 +118,7 @@ public class Config {
         return validSeeds;
     }
 
-    public String getFromSysEnvOrDefault(String name, String defaultValue) {
+    private String getFromSysEnvOrDefault(String name, String defaultValue) {
         String sysProp = System.getProperty(name, "");
         if (!sysProp.isEmpty()) {
             return sysProp;
@@ -97,7 +131,7 @@ public class Config {
 
     }
 
-    public Integer getFromSysEnvOrDefault(String name, Integer defaultValue) {
+    private Integer getFromSysEnvOrDefault(String name, Integer defaultValue) {
         String sysProp = System.getProperty(name, "");
         if (!sysProp.isEmpty()) {
             return parseInteger(sysProp);
@@ -119,10 +153,6 @@ public class Config {
 
     public Integer getMaxPeerConnections() {
         return MAX_PEER_CONNECTIONS;
-    }
-
-    public static Config instance(){
-        return new Config();
     }
 
 }

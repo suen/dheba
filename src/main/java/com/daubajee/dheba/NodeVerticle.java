@@ -43,7 +43,7 @@ public class NodeVerticle extends AbstractVerticle {
         router.route().method(HttpMethod.POST).path("/addPeer").handler(this::handleAddPeer);
 
         server.requestHandler(router::accept);
-        int httpPort = Config.instance().getHttpPort();
+        int httpPort = new Config(vertx).getHttpPort();
         server.listen(httpPort, handler -> {
             if (handler.failed()) {
                 LOGGER.error("Failed binding on " + httpPort);

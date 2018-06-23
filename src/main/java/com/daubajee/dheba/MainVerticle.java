@@ -16,7 +16,6 @@ public class MainVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MainVerticle.class);
 
-    Config config = Config.instance();
 
     @Override
     public void start() throws Exception {
@@ -31,6 +30,7 @@ public class MainVerticle extends AbstractVerticle {
                 }
             });
         }
+        Config config = new Config(vertx);
 
         int sshPort = config.getSSHPort();
 

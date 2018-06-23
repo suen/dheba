@@ -43,7 +43,7 @@ public class PeerVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PeerVerticle.class);
 
-    private Config config = Config.instance();
+    private Config config;
 
     private Set<String> knownSelfAddresses = new ConcurrentHashSet<String>();
 
@@ -55,7 +55,9 @@ public class PeerVerticle extends AbstractVerticle {
 
     @Override
     public void start() throws Exception {
-        vertx.deployVerticle(new MessengerVerticle(config));
+        config = new Config(vertx);
+
+        vertx.deployVerticle(new MessengerVerticle());
 
         eventBus = vertx.eventBus();
 

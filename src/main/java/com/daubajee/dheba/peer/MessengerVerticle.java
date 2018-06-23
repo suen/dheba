@@ -39,12 +39,12 @@ public class MessengerVerticle extends AbstractVerticle {
 
 	private int p2pPort = 0;
 
-    public MessengerVerticle(Config config) {
-        this.config = config;
+    public MessengerVerticle() {
     }
 
     @Override
     public void start() throws Exception {
+        config = new Config(vertx);
 
         eventBus = vertx.eventBus();
         
