@@ -3,6 +3,7 @@ package com.daubajee.dheba;
 import static org.junit.Assert.assertThat;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +14,7 @@ import com.daubajee.dheba.peer.PeerManagerVerticle;
 import com.daubajee.dheba.peer.PeerMessage;
 import com.daubajee.dheba.peer.RemotePeerEvent;
 import com.daubajee.dheba.peer.RemotePeerPacket;
+import com.daubajee.dheba.peer.S;
 import com.daubajee.dheba.peer.msg.HandShake;
 
 import io.vertx.core.Vertx;
@@ -58,7 +60,18 @@ public class TestPeerManagerVerticles {
 
     		assertThat("A " + PeerMessage.HANDSHAKE + " was expected", msgType, CoreMatchers.equalTo(PeerMessage.HANDSHAKE));
         	
-        	PeerMessage handshakeAckMsg = new PeerMessage(PeerMessage.HANDSHAKE_ACK, new JsonObject());
+            HandShake handShake = new HandShake();
+            handShake.setAddrMe("localhost:42041");
+            handShake.setAddrYou("localhost:42042");
+            handShake.setAgent("Agent 1");
+            handShake.setServices("SERVICES BETA");
+            handShake.setVersion("0.1");
+            handShake.setTimestamp(System.currentTimeMillis());
+            handShake.setBestHeight(1);
+
+            JsonObject handshakeAckContent = handShake.toJson();
+
+            PeerMessage handshakeAckMsg = new PeerMessage(PeerMessage.HANDSHAKE, handshakeAckContent);
         	RemotePeerPacket handshakeAckPacket = new RemotePeerPacket("localhost", 42042, handshakeAckMsg.toJson());
         	eventBus.publish(Topic.REMOTE_PEER_INBOX, handshakeAckPacket.toJson());
        	
@@ -70,29 +83,52 @@ public class TestPeerManagerVerticles {
     
     @Test
     public void testIncomingHandshake(Vertx vertx, VertxTestContext testContext) throws Throwable {
-    	Checkpoint strictCheckpoint = testContext.strictCheckpoint();
+        Checkpoint strictCheckpoint = testContext.strictCheckpoint(2);
     	
     	EventBus eventBus = vertx.eventBus();
     	
     	String remoteHostAddress = "localhost";
-		int remoteHostPort = 42042;
+        int remoteOutgoingHostPort = 51200;
+        int remoteIncomingHostPort = 51241;
 		
-    	
+        HandShake handShake = new HandShake();
+        handShake.setAddrMe("localhost:" + remoteIncomingHostPort);
+        handShake.setAddrYou("localhost:42042");
+        handShake.setAgent("Agent 1");
+        handShake.setServices("SERVICES BETA");
+        handShake.setVersion("0.1");
+        handShake.setTimestamp(System.currentTimeMillis());
+        handShake.setBestHeight(1);
+
+        AtomicBoolean flip = new AtomicBoolean(false);
     	eventBus.consumer(Topic.REMOTE_PEER_OUTBOX, handler -> {
-    		
-    		JsonObject body = (JsonObject)handler.body();
-    		JsonObject packetContent = body.getJsonObject("content", new JsonObject());
-    		String msgType = packetContent.getString("type", "");
-    		assertThat("A " + PeerMessage.HANDSHAKE_ACK + " was expected", msgType, CoreMatchers.equalTo(PeerMessage.HANDSHAKE_ACK));
-    		strictCheckpoint.flag();
+            JsonObject body = (JsonObject) handler.body();
+            JsonObject packetContent = body.getJsonObject("content", new JsonObject());
+            String msgType = packetContent.getString("type", "");
+            String packetHost = body.getString(S.REMOTE_HOST_ADDRESS);
+            int packetPort = body.getInteger(S.REMOTE_HOST_PORT);
+
+            assertThat("A " + PeerMessage.HANDSHAKE + " was expected", msgType,
+                    CoreMatchers.equalTo(PeerMessage.HANDSHAKE));
+            if (!flip.getAndSet(true)) {
+                assertThat("Unexpected host", packetHost, CoreMatchers.equalTo(remoteHostAddress));
+                assertThat("Unexpected port", packetPort, CoreMatchers.equalTo(remoteOutgoingHostPort));
+                strictCheckpoint.flag();
+            }
+            else {
+                assertThat("Unexpected host", packetHost, CoreMatchers.equalTo(remoteHostAddress));
+                assertThat("Unexpected port", packetPort, CoreMatchers.equalTo(remoteIncomingHostPort));
+                strictCheckpoint.flag();
+            }
+
     	});
     	
-    	RemotePeerEvent event = new RemotePeerEvent(remoteHostAddress, remoteHostPort, RemotePeerEvent.CONNECTED);
+    	RemotePeerEvent event = new RemotePeerEvent(remoteHostAddress, remoteOutgoingHostPort, RemotePeerEvent.CONNECTED);
     	eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
-    	
-    	JsonObject handshakeContent = new HandShake().toJson();
+
+        JsonObject handshakeContent = handShake.toJson();
     	PeerMessage handshakeMsg = new PeerMessage(PeerMessage.HANDSHAKE, handshakeContent);
-    	RemotePeerPacket handshakePacket = new RemotePeerPacket(remoteHostAddress, remoteHostPort, handshakeMsg.toJson());
+    	RemotePeerPacket handshakePacket = new RemotePeerPacket(remoteHostAddress, remoteOutgoingHostPort, handshakeMsg.toJson());
 
     	eventBus.publish(Topic.REMOTE_PEER_INBOX, handshakePacket.toJson());
     	

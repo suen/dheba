@@ -6,19 +6,19 @@ import io.vertx.core.json.JsonObject;
 
 public class HandShake {
 
-    private String version;
+    private String version = "";
 
-    private String services;
+    private String services = "";
 
-    private long timestamp;
+    private long timestamp = 0;
 
-    private String addrYou;
+    private String addrYou = "";
 
-    private String addrMe;
+    private String addrMe = "";
 
-    private String agent;
+    private String agent = "";
 
-    private int bestHeight;
+    private int bestHeight = 0;
 
     public String getVersion() {
         return version;
@@ -74,6 +74,12 @@ public class HandShake {
 
     public void setBestHeight(int bestHeight) {
         this.bestHeight = bestHeight;
+    }
+    
+    public boolean isValid() {
+        return !version.isEmpty() && !services.isEmpty() && timestamp != 0
+                && !addrYou.isEmpty() && !addrMe.isEmpty() && !agent.isEmpty()
+                && bestHeight != 0;
     }
 
     public JsonObject toJson() {

@@ -1,13 +1,15 @@
 package com.daubajee.dheba.peer;
 
-import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.daubajee.dheba.Topic;
+import com.daubajee.dheba.peer.msg.HandShake;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Verticle;
@@ -23,7 +25,9 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
     private Map<String, String> deployedVerticles = new ConcurrentHashMap<>();
     
-    private Map<String, Instant> readyPeers = new ConcurrentHashMap<>();
+    private Map<String, PeerConnection> peerConnection = new ConcurrentHashMap<>();
+
+    private final int MAX_OUTGOING_CONNECTION = 5;
 
     @Override
     public void start() throws Exception {
@@ -34,6 +38,34 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
         eventBus.consumer(Topic.REMOTE_PEER_INBOX, this::onRemotePeerMessage);
 
+        vertx.setPeriodic(1000, this::onPeriodStream);
+    }
+
+    private void onPeriodStream(Long tick) {
+
+        List<PeerConnection> outgoingConnections = peerConnection.values()
+            .stream()
+            .filter(con -> con.getOutgoingPort() > 0)
+            .collect(Collectors.toList());
+
+        if (outgoingConnections.size() > MAX_OUTGOING_CONNECTION) {
+            return;
+        }
+        
+        peerConnection.values()
+            .stream()
+            .filter(con -> con.getOutgoingPort() == 0 && con.getIncomingPort() > 0)
+            .filter(con -> con.getHandshake() != null)
+            .limit(1)
+            .forEach(con -> {
+                HandShake handshake = con.getHandshake();
+                String remoteHostAddress = handshake.getAddrMe();
+                String remoteHost = getHostnameFromAddress(remoteHostAddress);
+                Integer remotePort = getPortFromAddress(remoteHostAddress);
+                RemotePeerEvent event = new RemotePeerEvent(remoteHost, remotePort, RemotePeerEvent.NEW_PEER);
+                eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
+                LOGGER.info("Creating an outgoing connection to an incoming Peer {}", remoteHostAddress);
+            });
     }
 
     private void onRemotePeerEvent(Message<JsonObject> msg) {
@@ -92,21 +124,64 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
     private void deployPeerIncomingChannel(RemotePeerEvent remotePeerEvent) {
 
-        PeerIncomingChannel incomingChannel = new PeerIncomingChannel(remotePeerEvent.getRemoteHostAddress(), remotePeerEvent.getRemoteHostPort());
+        String remoteHostAddress = remotePeerEvent.getRemoteHostAddress();
+        int remoteHostPort = remotePeerEvent.getRemoteHostPort();
+        PeerIncomingChannel incomingChannel = new PeerIncomingChannel(remoteHostAddress, remoteHostPort);
 
-        deployVerticle(incomingChannel, remotePeerId(remotePeerEvent));
+        PeerConnection connection = peerConnection.computeIfAbsent(remoteHostAddress, ra -> new PeerConnection(ra));
+        
+        if (connection.getIncomingPort() != 0) {
+            LOGGER.warn("An incoming connection already exists for {}", remoteHostAddress);
+            return;
+        }
+        connection.setIncomingPort(remoteHostPort);
+
+        String remotePeerId = remotePeerId(remotePeerEvent);
+        deployVerticle(incomingChannel, remotePeerId);
+        LOGGER.info("IncomingVerticle deployed for {}", remotePeerId);
     }
 
     private void deployPeerOutgoingChannel(RemotePeerEvent remotePeerEvent) {
-        PeerOutgoingChannel outgoing = new PeerOutgoingChannel(remotePeerEvent.getRemoteHostAddress(),
-                remotePeerEvent.getRemoteHostPort());
+        String remoteHostAddress = remotePeerEvent.getRemoteHostAddress();
+        int remoteHostPort = remotePeerEvent.getRemoteHostPort();
+        PeerOutgoingChannel outgoing = new PeerOutgoingChannel(remoteHostAddress, remoteHostPort);
+        PeerConnection connection = peerConnection.computeIfAbsent(remoteHostAddress, ra -> new PeerConnection(ra));
 
-        deployVerticle(outgoing, remotePeerId(remotePeerEvent));
+        if (connection.getOutgoingPort() != 0) {
+            LOGGER.warn("An outgoing connection already exists for {}", remoteHostAddress);
+            return;
+        }
+        connection.setOutgoingPort(remoteHostPort);
+
+        String remotePeerId = remotePeerId(remotePeerEvent);
+        deployVerticle(outgoing, remotePeerId);
+        LOGGER.info("OutgoingVerticle deployed for {}", remotePeerId);
     }
     
     private void addToReadyPeers(RemotePeerEvent remotePeerEvent) {
-    	String remotePeerId = remotePeerId(remotePeerEvent);
-    	readyPeers.put(remotePeerId, Instant.now());
+        JsonObject content = remotePeerEvent.getContent();
+
+        String remoteHostAddress = remotePeerEvent.getRemoteHostAddress();
+        PeerConnection connection = peerConnection.get(remoteHostAddress);
+        if (connection == null) {
+            LOGGER.error("No PeerConnection found for {}", remoteHostAddress);
+            return;
+        }
+
+        HandShake handshake = HandShake.fromJson(content);
+        // No handshake content for type HANDSHAKE_ACK
+        if (handshake.isValid()) {
+            // change the remote hostname in the Handshake with the hostname in
+            // the
+            // RemotePeerEvent object as this is the address this node sees the
+            // remote Peer
+            Integer port = getPortFromAddress(handshake.getAddrMe());
+            handshake.setAddrMe(remotePeerEvent.getRemoteHostAddress() + ":" + port);
+            connection.setHandshake(handshake);
+        } else {
+            LOGGER.warn("Content of {} invalid, content : {}", PeerMessage.HANDSHAKE, content);
+        }
+
 	}
 
     private void deployVerticle(Verticle incomingChannel, String remotePeerId) {
@@ -127,7 +202,21 @@ public class PeerManagerVerticle extends AbstractVerticle {
             String id = deployedVerticles.remove(remotePeerId);
             vertx.undeploy(id);
         }
-        readyPeers.remove(remotePeerId);
+    }
+
+    private static String getHostnameFromAddress(String address) {
+        int indexOfColon = address.indexOf(":");
+        return address.substring(0, indexOfColon);
+    }
+
+    private static Integer getPortFromAddress(String address) {
+        int indexOfColon = address.indexOf(":");
+        String portStr = address.substring(indexOfColon + 1);
+        try {
+            return Integer.parseInt(portStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     private static String remotePeerId(RemotePeerEvent remotePeerEvent) {

@@ -3,6 +3,7 @@ package com.daubajee.dheba.peer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
 import com.daubajee.dheba.peer.msg.HandShake;
 
@@ -40,8 +41,13 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 
         consumer = eventBus.consumer(getRemotePeerInboxTopic(), this::onInboxMessage);
 
-        vertx.timerStream(1000).handler(handler -> {
-            JsonObject handshakeMsgContent = createHandShakeMessage(remoteHostAddress, remoteHostPort, "localhost", 8080);
+        vertx.setTimer(1000, handler -> {
+            
+            Config config = new Config(vertx);
+            String selfname = config.getHostname();
+            int selfport = config.getP2PPort();
+            
+            JsonObject handshakeMsgContent = PeerUtils.createHandShakeMessage(remoteHostAddress, remoteHostPort, selfname, selfport);
             PeerMessage handshakeMsg = new PeerMessage(PeerMessage.HANDSHAKE, handshakeMsgContent);
             RemotePeerPacket packet = new RemotePeerPacket(remoteHostAddress, remoteHostPort, handshakeMsg.toJson());
             eventBus.send(Topic.REMOTE_PEER_OUTBOX, packet.toJson());
@@ -66,7 +72,7 @@ public class PeerOutgoingChannel extends AbstractVerticle {
         
         LOGGER.info("Message of type {} received on {}", type, getRemotePeerInboxTopic());
         switch (type) {
-			case PeerMessage.HANDSHAKE_ACK:
+            case PeerMessage.HANDSHAKE :
 				onHandShakeAck(peerMsg.getContent());
 				break;
 	
@@ -80,28 +86,21 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 		if (currentState == State.WAIT_HANDSHAKE_ACK) {
 			currentState = State.READY;
 			
-			RemotePeerEvent event = new RemotePeerEvent(remoteHostAddress, remoteHostPort, RemotePeerEvent.HANDSHAKED);
+            if (!HandShake.fromJson(content).isValid()) {
+                LOGGER.warn("Invalid {} message received : {}", PeerMessage.HANDSHAKE, content);
+                return;
+            }
+
+            RemotePeerEvent event = new RemotePeerEvent(remoteHostAddress, remoteHostPort, RemotePeerEvent.HANDSHAKED,
+                    content);
 			eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
 		}
 		else {
-			LOGGER.warn(PeerMessage.HANDSHAKE_ACK + " already received");
+            LOGGER.warn(PeerMessage.HANDSHAKE + " already received");
 		}
 	}
 
-	private JsonObject createHandShakeMessage(String remoteHost, Integer remotePort, String selfHost,
-            Integer selfPort) {
-        HandShake handShake = new HandShake();
-        handShake.setAddrMe(selfHost + ":" + selfPort);
-        handShake.setAddrYou(remoteHost + ":" + remotePort);
-        handShake.setAgent("dheba 0.1");
-        handShake.setBestHeight(1);
-        handShake.setServices("NODE BETA ALPHA");
-        handShake.setTimestamp(System.currentTimeMillis());
-        handShake.setVersion("0.1");
-        return handShake.toJson();
-    }
-    
-	private static enum State {
+    private static enum State {
     	
     	INIT,
     	

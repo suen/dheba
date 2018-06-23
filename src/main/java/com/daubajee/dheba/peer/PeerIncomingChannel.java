@@ -3,7 +3,9 @@ package com.daubajee.dheba.peer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
+import com.daubajee.dheba.peer.msg.HandShake;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
@@ -29,7 +31,7 @@ public class PeerIncomingChannel extends AbstractVerticle {
         this.remoteHostAddress = remoteHostAddress;
         this.remoteHostPort = remoteHostPort;
         LOGGER = LoggerFactory
-                .getLogger(PeerOutgoingChannel.class.getSimpleName() + "-" + remoteHostAddress + ":" + remoteHostPort);
+                .getLogger(PeerIncomingChannel.class.getSimpleName() + "-" + remoteHostAddress + ":" + remoteHostPort);
     }
 
     @Override
@@ -59,7 +61,7 @@ public class PeerIncomingChannel extends AbstractVerticle {
 		String type = peerMsg.getType();
 		
 		LOGGER.info("Message of type {} received on {}", type, getRemotePeerInboxTopic());
-		
+        LOGGER.info("Message content : {}", peerMsg.getContent());
 		switch(type) {
 			case PeerMessage.HANDSHAKE:
 				onHandshake(peerMsg.getContent());
@@ -74,9 +76,22 @@ public class PeerIncomingChannel extends AbstractVerticle {
     private void onHandshake(JsonObject content) {
 		if (currentState.equals(State.WAIT_HANDSHAKE)) {
 			currentState = State.READY;
+        } else {
+            LOGGER.info("Handshake message already processed");
+            return;
 		}
 		
-		PeerMessage handshakeAckMsg = new PeerMessage(PeerMessage.HANDSHAKE_ACK, new JsonObject());
+		if (!HandShake.fromJson(content).isValid()) {
+		    LOGGER.warn("Invalid {} message received : {}", PeerMessage.HANDSHAKE, content);
+            return;
+		}
+		
+        Config config = new Config(vertx);
+        String selfname = config.getHostname();
+        int selfport = config.getP2PPort();		
+        JsonObject handshakeMsgContent = PeerUtils.createHandShakeMessage(remoteHostAddress, remoteHostPort, selfname, selfport);
+
+        PeerMessage handshakeAckMsg = new PeerMessage(PeerMessage.HANDSHAKE, handshakeMsgContent);
 		RemotePeerPacket handshakeActPacket = new RemotePeerPacket(remoteHostAddress, remoteHostPort, handshakeAckMsg.toJson());
 
 		eventBus.publish(Topic.REMOTE_PEER_OUTBOX, handshakeActPacket.toJson());
