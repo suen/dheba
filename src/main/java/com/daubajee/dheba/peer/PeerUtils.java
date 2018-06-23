@@ -1,5 +1,7 @@
 package com.daubajee.dheba.peer;
 
+import com.daubajee.dheba.peer.msg.HandShake;
+
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 
@@ -52,6 +54,19 @@ public class PeerUtils {
                 .put(S.REMOTE_PORT, remotePort)
                 .put(S.TYPE, "PEER_SEND")
                 .put(S.MESSAGE, handShakeMsg);
+    }
+
+    public static JsonObject createHandShakeMessage(String remoteHost, Integer remotePort, String selfHost,
+            Integer selfPort) {
+        HandShake handShake = new HandShake();
+        handShake.setAddrMe(selfHost + ":" + selfPort);
+        handShake.setAddrYou(remoteHost + ":" + remotePort);
+        handShake.setAgent("dheba 0.1");
+        handShake.setBestHeight(1);
+        handShake.setServices("NODE BETA ALPHA");
+        handShake.setTimestamp(System.currentTimeMillis());
+        handShake.setVersion("0.1");
+        return handShake.toJson();
     }
 
 }
