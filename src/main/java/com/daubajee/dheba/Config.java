@@ -164,31 +164,6 @@ public class Config {
         return validSeeds;
     }
 
-    private String getFromSysEnvOrDefault(String name, String defaultValue) {
-        String sysProp = System.getProperty(name, "");
-        if (!sysProp.isEmpty()) {
-            return sysProp;
-        }
-        String envProp = System.getenv(name);
-        if (envProp != null && !envProp.isEmpty()) {
-            return envProp;
-        }
-        return defaultValue;
-
-    }
-
-    private Integer getFromSysEnvOrDefault(String name, Integer defaultValue) {
-        String sysProp = System.getProperty(name, "");
-        if (!sysProp.isEmpty()) {
-            return parseInteger(sysProp);
-        }
-        String envProp = System.getenv(name);
-        if (envProp != null && !envProp.isEmpty()) {
-            return parseInteger(envProp);
-        }
-        return defaultValue;
-    }
-
     public Integer parseInteger(String value) {
         try {
             return Integer.valueOf(value);
