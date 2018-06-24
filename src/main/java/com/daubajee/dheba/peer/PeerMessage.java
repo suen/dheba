@@ -1,5 +1,8 @@
 package com.daubajee.dheba.peer;
 
+import java.util.Arrays;
+import java.util.List;
+
 import io.vertx.core.json.JsonObject;
 
 public class PeerMessage {
@@ -10,6 +13,12 @@ public class PeerMessage {
 
     public static final String HANDSHAKE = "HANDSHAKE";
     
+    public static final String GET_PEER_LIST = "GET_PEER_LIST";
+
+    public static final String PEER_LIST = "PEER_LIST";
+
+    public static final List<String> TYPES = Arrays.asList(HANDSHAKE, GET_PEER_LIST, PEER_LIST);
+
     public PeerMessage(String type, JsonObject content) {
         this.type = type;
         this.content = content;
@@ -25,7 +34,7 @@ public class PeerMessage {
 
 
     public boolean isValid() {
-        return !type.isEmpty() && !content.isEmpty();
+        return type != null && !type.isEmpty() && TYPES.contains(type) && content != null && !content.isEmpty();
     }
 
     public static PeerMessage from(JsonObject packet) {
