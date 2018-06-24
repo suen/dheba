@@ -25,7 +25,7 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
     private Map<String, String> deployedVerticles = new ConcurrentHashMap<>();
     
-    private Map<String, PeerConnection> peerConnection = new ConcurrentHashMap<>();
+    private Map<String, Peer> peers = new ConcurrentHashMap<>();
 
     private final int MAX_OUTGOING_CONNECTION = 5;
 
@@ -43,7 +43,7 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
     private void onPeriodStream(Long tick) {
 
-        List<PeerConnection> outgoingConnections = peerConnection.values()
+        List<Peer> outgoingConnections = peers.values()
             .stream()
             .filter(con -> con.getOutgoingPort() > 0)
             .collect(Collectors.toList());
@@ -52,7 +52,7 @@ public class PeerManagerVerticle extends AbstractVerticle {
             return;
         }
         
-        peerConnection.values()
+        peers.values()
             .stream()
             .filter(con -> con.getOutgoingPort() == 0 && con.getIncomingPort() > 0)
             .filter(con -> con.getHandshake() != null)
@@ -128,13 +128,13 @@ public class PeerManagerVerticle extends AbstractVerticle {
         int remoteHostPort = remotePeerEvent.getRemoteHostPort();
         PeerIncomingChannel incomingChannel = new PeerIncomingChannel(remoteHostAddress, remoteHostPort);
 
-        PeerConnection connection = peerConnection.computeIfAbsent(remoteHostAddress, ra -> new PeerConnection(ra));
+        Peer peer = peers.computeIfAbsent(remoteHostAddress, ra -> new Peer(ra));
         
-        if (connection.getIncomingPort() != 0) {
+        if (peer.getIncomingPort() != 0) {
             LOGGER.warn("An incoming connection already exists for {}", remoteHostAddress);
             return;
         }
-        connection.setIncomingPort(remoteHostPort);
+        peer.setIncomingPort(remoteHostPort);
 
         String remotePeerId = remotePeerId(remotePeerEvent);
         deployVerticle(incomingChannel, remotePeerId);
@@ -145,13 +145,13 @@ public class PeerManagerVerticle extends AbstractVerticle {
         String remoteHostAddress = remotePeerEvent.getRemoteHostAddress();
         int remoteHostPort = remotePeerEvent.getRemoteHostPort();
         PeerOutgoingChannel outgoing = new PeerOutgoingChannel(remoteHostAddress, remoteHostPort);
-        PeerConnection connection = peerConnection.computeIfAbsent(remoteHostAddress, ra -> new PeerConnection(ra));
+        Peer peer = peers.computeIfAbsent(remoteHostAddress, ra -> new Peer(ra));
 
-        if (connection.getOutgoingPort() != 0) {
+        if (peer.getOutgoingPort() != 0) {
             LOGGER.warn("An outgoing connection already exists for {}", remoteHostAddress);
             return;
         }
-        connection.setOutgoingPort(remoteHostPort);
+        peer.setOutgoingPort(remoteHostPort);
 
         String remotePeerId = remotePeerId(remotePeerEvent);
         deployVerticle(outgoing, remotePeerId);
@@ -162,7 +162,7 @@ public class PeerManagerVerticle extends AbstractVerticle {
         JsonObject content = remotePeerEvent.getContent();
 
         String remoteHostAddress = remotePeerEvent.getRemoteHostAddress();
-        PeerConnection connection = peerConnection.get(remoteHostAddress);
+        Peer connection = peers.get(remoteHostAddress);
         if (connection == null) {
             LOGGER.error("No PeerConnection found for {}", remoteHostAddress);
             return;

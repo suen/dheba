@@ -2,7 +2,7 @@ package com.daubajee.dheba.peer;
 
 import com.daubajee.dheba.peer.msg.HandShake;
 
-public class PeerConnection {
+public class Peer {
 
     private final String address;
 
@@ -12,7 +12,7 @@ public class PeerConnection {
 
     private HandShake handshake;
 
-    public PeerConnection(String address) {
+    public Peer(String address) {
         this.address = address;
     }
     
@@ -60,7 +60,7 @@ public class PeerConnection {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        PeerConnection other = (PeerConnection) obj;
+        Peer other = (Peer) obj;
         if (address == null) {
             if (other.address != null)
                 return false;
