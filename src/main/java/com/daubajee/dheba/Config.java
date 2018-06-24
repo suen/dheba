@@ -5,21 +5,28 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.daubajee.dheba.peer.Peer;
 
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 
 public class Config {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(Config.class);
 
     public static final String P_HTTP_PORT = "dheba.port.http";
@@ -36,7 +43,8 @@ public class Config {
 
     public static final int DEFAULT_P2P_PORT = 42042;
 
-    public static final Pattern P2P_ADDRESS_PATTERN = Pattern.compile("((?:[\\w\\d]+)(?:\\.[\\w\\d]+)*)(\\:)(\\d+)");
+    public static final Pattern P2P_ADDRESS_PATTERN = Pattern
+            .compile("(?<hostname>(?:[\\w\\d]+)(?:\\.[\\w\\d]+)*)(\\:)(?<port>\\d+)");
 
     public static final Integer MAX_PEER_CONNECTIONS = 2;
 
@@ -97,6 +105,7 @@ public class Config {
         }
     }
 
+    @Deprecated
     public Collection<String> getInitialPeerSeeds() {
         String seeds = conf.getString(P_P2P_SEEDS, "");
         if (seeds.isEmpty()) {
@@ -112,6 +121,37 @@ public class Config {
                 return matches;
             })
             .collect(Collectors.toSet());
+        if (validSeeds.isEmpty()) {
+            LOGGER.warn("No initial seed address configured");
+        }
+        return validSeeds;
+    }
+
+    public Set<Peer> getPeerSeeds() {
+        String seeds = conf.getString(P_P2P_SEEDS, "");
+        if (seeds.isEmpty()) {
+            LOGGER.warn("No initial seed address configured");
+            return Collections.emptySet();
+        }
+        String[] seedSplits = seeds.split(";");
+        Set<Peer> validSeeds = Arrays.asList(seedSplits).stream()
+            .map(s -> {
+                Matcher matcher = P2P_ADDRESS_PATTERN.matcher(s.trim());
+                Peer peer = null;
+                if (matcher.find()) {
+                    String hostname = matcher.group("hostname");
+                    Integer port = Integer.parseInt(matcher.group("port"));
+                    peer = new Peer(hostname);
+                    peer.setOutgoingPort(port);
+                } else {
+                    LOGGER.warn("Seed address invalid : " + s);
+                }
+                return Optional.ofNullable(peer);
+            })
+            .filter(op -> op.isPresent())
+            .map(op -> op.get())
+            .collect(Collectors.toSet());
+        
         if (validSeeds.isEmpty()) {
             LOGGER.warn("No initial seed address configured");
         }
