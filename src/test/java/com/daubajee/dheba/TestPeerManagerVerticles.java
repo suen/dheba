@@ -10,7 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import com.daubajee.dheba.peer.PeerListManagerVerticle;
+import com.daubajee.dheba.peer.PeerRegistryVerticle;
 import com.daubajee.dheba.peer.PeerManagerVerticle;
 import com.daubajee.dheba.peer.PeerMessage;
 import com.daubajee.dheba.peer.RemotePeerEvent;
@@ -78,7 +78,7 @@ public class TestPeerManagerVerticles {
         });
         
         System.setProperty(Config.P_P2P_SEEDS, "localhost:42042");
-        PeerListManagerVerticle peerListManagerVerticle = new PeerListManagerVerticle();
+        PeerRegistryVerticle peerListManagerVerticle = new PeerRegistryVerticle();
         vertx.deployVerticle(peerListManagerVerticle, testContext.succeeding());
 
     }

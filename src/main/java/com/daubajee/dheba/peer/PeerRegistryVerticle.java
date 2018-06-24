@@ -6,7 +6,7 @@ import com.daubajee.dheba.Topic;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
 
-public class PeerListManagerVerticle extends AbstractVerticle {
+public class PeerRegistryVerticle extends AbstractVerticle {
 
     private Config config;
 

@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.daubajee.dheba.peer.MessengerVerticle;
-import com.daubajee.dheba.peer.PeerListManagerVerticle;
+import com.daubajee.dheba.peer.PeerRegistryVerticle;
 import com.daubajee.dheba.peer.PeerManagerVerticle;
 
 import io.vertx.core.AbstractVerticle;
@@ -26,7 +26,7 @@ public class MainVerticle extends AbstractVerticle {
         String[] verticles = new String[]{
                 PeerManagerVerticle.class.getCanonicalName(),
                 MessengerVerticle.class.getCanonicalName(),
-                PeerListManagerVerticle.class.getCanonicalName(),
+                PeerRegistryVerticle.class.getCanonicalName(),
                 NodeVerticle.class.getCanonicalName(),
                 BlockVerticle.class.getCanonicalName()};
         
