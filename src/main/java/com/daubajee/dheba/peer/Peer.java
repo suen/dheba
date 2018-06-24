@@ -1,5 +1,7 @@
 package com.daubajee.dheba.peer;
 
+import java.time.Instant;
+
 import com.daubajee.dheba.peer.msg.HandShake;
 
 public class Peer {
@@ -11,6 +13,8 @@ public class Peer {
     private int outgoingPort = 0;
 
     private HandShake handshake;
+
+    private Instant lastActivity = Instant.EPOCH;
 
     public Peer(String address) {
         this.address = address;
@@ -42,6 +46,26 @@ public class Peer {
 
     public void setHandshake(HandShake handshake) {
         this.handshake = handshake;
+    }
+
+    public Instant getLastActivity() {
+        return lastActivity;
+    }
+
+    public void setActiveNow() {
+        this.lastActivity = Instant.now();
+    }
+
+    public void deactivate() {
+        this.lastActivity = Instant.EPOCH;
+    }
+
+    public boolean isOutgoing() {
+        return this.outgoingPort != 0;
+    }
+
+    public boolean isActive() {
+        return lastActivity != Instant.EPOCH;
     }
 
     @Override
