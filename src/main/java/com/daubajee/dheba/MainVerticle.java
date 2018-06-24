@@ -3,6 +3,10 @@ package com.daubajee.dheba;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.daubajee.dheba.peer.MessengerVerticle;
+import com.daubajee.dheba.peer.PeerListManagerVerticle;
+import com.daubajee.dheba.peer.PeerManagerVerticle;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.JksOptions;
@@ -19,8 +23,13 @@ public class MainVerticle extends AbstractVerticle {
 
     @Override
     public void start() throws Exception {
-        String[] verticles = new String[]{"com.daubajee.dheba.NodeVerticle",
-                "com.daubajee.dheba.peer.PeerVerticle", "com.daubajee.dheba.BlockVerticle"};
+        String[] verticles = new String[]{
+                PeerManagerVerticle.class.getCanonicalName(),
+                MessengerVerticle.class.getCanonicalName(),
+                PeerListManagerVerticle.class.getCanonicalName(),
+                NodeVerticle.class.getCanonicalName(),
+                BlockVerticle.class.getCanonicalName()};
+        
         for (String verticle : verticles) {
             vertx.deployVerticle(verticle, result -> {
                 if (result.succeeded()) {

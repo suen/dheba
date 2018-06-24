@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import com.daubajee.dheba.peer.PeerListManagerVerticle;
 import com.daubajee.dheba.peer.PeerManagerVerticle;
 import com.daubajee.dheba.peer.PeerMessage;
 import com.daubajee.dheba.peer.RemotePeerEvent;
@@ -30,12 +31,12 @@ public class TestPeerManagerVerticles {
     @BeforeEach
     public void setup(Vertx vertx, VertxTestContext testContext) throws Throwable {
 
-        Checkpoint verticleCcheck = testContext.checkpoint();
+        Checkpoint managerVerticleCheck = testContext.checkpoint();
         
         PeerManagerVerticle peerManagerVerticle = new PeerManagerVerticle();
         
         vertx.deployVerticle(peerManagerVerticle, testContext.succeeding(h -> {
-        	verticleCcheck.flag();
+            managerVerticleCheck.flag();
         }));
 
         testContext.awaitCompletion(5, TimeUnit.SECONDS);
@@ -49,8 +50,6 @@ public class TestPeerManagerVerticles {
         Checkpoint strictCheckpoint = testContext.strictCheckpoint();
 
         EventBus eventBus = vertx.eventBus();
-
-        RemotePeerEvent event = new RemotePeerEvent("localhost", 42042, RemotePeerEvent.NEW_PEER);
 
         eventBus.consumer(Topic.REMOTE_PEER_OUTBOX, handler -> {
 
@@ -78,7 +77,10 @@ public class TestPeerManagerVerticles {
         	strictCheckpoint.flag();
         });
         
-        eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
+        System.setProperty(Config.P_P2P_SEEDS, "localhost:42042");
+        PeerListManagerVerticle peerListManagerVerticle = new PeerListManagerVerticle();
+        vertx.deployVerticle(peerListManagerVerticle, testContext.succeeding());
+
     }
     
     @Test
