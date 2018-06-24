@@ -139,10 +139,16 @@ public class Config {
                 Matcher matcher = P2P_ADDRESS_PATTERN.matcher(s.trim());
                 Peer peer = null;
                 if (matcher.find()) {
-                    String hostname = matcher.group("hostname");
-                    Integer port = Integer.parseInt(matcher.group("port"));
-                    peer = new Peer(hostname);
-                    peer.setOutgoingPort(port);
+                    try {
+                        String hostname = matcher.group("hostname");
+                        Integer port = Integer.parseInt(matcher.group("port"));
+                        InetAddress inetAddress = InetAddress.getByName(hostname);
+                        String hostAddress = inetAddress.getHostAddress();                    
+                        peer = new Peer(hostAddress);
+                        peer.setOutgoingPort(port);
+                    } catch (NumberFormatException | UnknownHostException e) {
+                        LOGGER.warn("Unknown host : " + s);
+                    }
                 } else {
                     LOGGER.warn("Seed address invalid : " + s);
                 }
