@@ -29,7 +29,9 @@ public class PeerListManagerVerticle extends AbstractVerticle {
             .stream()
             .limit(maxConnections)
             .forEach(peer -> {
-                RemotePeerEvent event = new RemotePeerEvent(peer.getAddress(), peer.getOutgoingPort(), RemotePeerEvent.NEW_PEER);
+                String address = peer.getAddress();
+                int outgoingPort = peer.getOutgoingPort();
+                RemotePeerEvent event = new RemotePeerEvent(address, outgoingPort, RemotePeerEvent.NEW_PEER);
                 eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
             });
         
