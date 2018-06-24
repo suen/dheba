@@ -8,4 +8,5 @@ public class Topic {
 
     public static final String REMOTE_PEER_EVENTS = "REMOTE_PEER_EVENTS";
 
+    public static final String PEER_REGISTRY = "PEER_REGISTRY";
 }
