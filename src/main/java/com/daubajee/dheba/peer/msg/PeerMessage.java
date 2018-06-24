@@ -1,7 +1,9 @@
-package com.daubajee.dheba.peer;
+package com.daubajee.dheba.peer.msg;
 
 import java.util.Arrays;
 import java.util.List;
+
+import com.daubajee.dheba.peer.S;
 
 import io.vertx.core.json.JsonObject;
 

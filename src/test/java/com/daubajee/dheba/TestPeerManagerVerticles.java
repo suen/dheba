@@ -12,11 +12,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import com.daubajee.dheba.peer.PeerRegistryVerticle;
 import com.daubajee.dheba.peer.PeerManagerVerticle;
-import com.daubajee.dheba.peer.PeerMessage;
 import com.daubajee.dheba.peer.RemotePeerEvent;
 import com.daubajee.dheba.peer.RemotePeerPacket;
 import com.daubajee.dheba.peer.S;
 import com.daubajee.dheba.peer.msg.HandShake;
+import com.daubajee.dheba.peer.msg.PeerMessage;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;

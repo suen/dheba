@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
 import com.daubajee.dheba.peer.msg.HandShake;
+import com.daubajee.dheba.peer.msg.PeerMessage;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
