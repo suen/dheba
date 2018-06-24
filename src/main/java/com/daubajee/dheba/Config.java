@@ -6,18 +6,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.daubajee.dheba.peer.Peer;
+import com.daubajee.dheba.peer.AddressPort;
 
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
@@ -127,39 +125,21 @@ public class Config {
         return validSeeds;
     }
 
-    public Set<Peer> getPeerSeeds() {
+    public Set<AddressPort> getPeerSeeds() {
         String seeds = conf.getString(P_P2P_SEEDS, "");
         if (seeds.isEmpty()) {
             LOGGER.warn("No initial seed address configured");
             return Collections.emptySet();
         }
         String[] seedSplits = seeds.split(";");
-        Set<Peer> validSeeds = Arrays.asList(seedSplits).stream()
-            .map(s -> {
-                Matcher matcher = P2P_ADDRESS_PATTERN.matcher(s.trim());
-                Peer peer = null;
-                if (matcher.find()) {
-                    try {
-                        String hostname = matcher.group("hostname");
-                        Integer port = Integer.parseInt(matcher.group("port"));
-                        InetAddress inetAddress = InetAddress.getByName(hostname);
-                        String hostAddress = inetAddress.getHostAddress();                    
-                        peer = new Peer(hostAddress);
-                        peer.setOutgoingPort(port);
-                    } catch (NumberFormatException | UnknownHostException e) {
-                        LOGGER.warn("Unknown host : " + s);
-                    }
-                } else {
-                    LOGGER.warn("Seed address invalid : " + s);
-                }
-                return Optional.ofNullable(peer);
-            })
+        Set<AddressPort> validSeeds = Arrays.asList(seedSplits).stream()
+            .map(s -> AddressPort.from(s.trim()))
             .filter(op -> op.isPresent())
             .map(op -> op.get())
             .collect(Collectors.toSet());
         
         if (validSeeds.isEmpty()) {
-            LOGGER.warn("No initial seed address configured");
+            LOGGER.warn("No valid initial seed address configured");
         }
         return validSeeds;
     }
