@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -186,7 +187,21 @@ public class PeerRegistryVerticle extends AbstractVerticle {
             return;
         }
         peer.setActiveNow();
-        peer.setHandshake(HandShake.fromJson(remotePeerEvent.getContent()));
+        HandShake handshake = HandShake.fromJson(remotePeerEvent.getContent());
+        if (handshake.isValid()) {
+            // change the remote hostname in the Handshake with the hostname in
+            // the RemotePeerEvent object as this is the address this node sees the
+            // remote Peer
+            Optional<AddressPort> containerAdrPort = AddressPort.from(handshake.getAddrMe());
+            containerAdrPort.ifPresent(adrPort -> {
+            	Integer port = containerAdrPort.get().getPort();
+            	handshake.setAddrMe(new AddressPort(remoteHostAddress, port).toString());
+            	peer.setHandshake(handshake);
+            });
+        } else {
+        	LOGGER.warn("Invalide HandShake msg : {}", remotePeerEvent.getContent());
+        }
+        
     }
 
     private PeerList getList(PeerRegistryMessage registryMessage) {
@@ -195,14 +210,26 @@ public class PeerRegistryVerticle extends AbstractVerticle {
         int max = getPeerList.getMax() > 0 ? getPeerList.getMax() : Integer.MAX_VALUE;
         List<String> excludes = getPeerList.getExclude();
 
-        List<String> peerList = registry
+        List<String> peer1List = registry
             .values()
             .stream()
             .filter(peer -> peer.isOutgoing())
             .map(peer -> peer.getAddress() + ":" + peer.getOutgoingPort())
             .filter(adrPort -> !excludes.contains(adrPort))
-            .limit(max)
             .collect(Collectors.toList());
+        
+        List<String> peerList2 = registry
+	        .values()
+	        .stream()
+	        .filter(peer -> !peer.isOutgoing() && peer.isIncoming() && peer.getHandshake().isValid())
+	        .map(peer -> peer.getHandshake().getAddrMe())
+	        .filter(adrPort -> !excludes.contains(adrPort))
+	        .collect(Collectors.toList());
+        
+        List<String> peerList = Stream.of(peer1List, peerList2)
+        	.flatMap(list -> list.stream())
+        	.limit(max)
+        	.collect(Collectors.toList());
         
         return new PeerList(peerList);
 
