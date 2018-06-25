@@ -63,6 +63,10 @@ public class Peer {
     public boolean isOutgoing() {
         return this.outgoingPort != 0;
     }
+    
+    public boolean isIncoming() {
+    	return this.incomingPort != 0;
+    }
 
     public boolean isActive() {
         return lastActivity != Instant.EPOCH;
