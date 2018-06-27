@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
 import com.daubajee.dheba.peer.msg.HandShake;
+import com.daubajee.dheba.peer.msg.PeerList;
 import com.daubajee.dheba.peer.msg.PeerMessage;
 
 import io.vertx.core.AbstractVerticle;
@@ -76,14 +77,16 @@ public class PeerOutgoingChannel extends AbstractVerticle {
             case PeerMessage.HANDSHAKE :
 				onHandShakeAck(peerMsg.getContent());
 				break;
-	
+            case PeerMessage.PEER_LIST:
+            	onPeerList(peerMsg.getContent());
+            	break;
 			default:
 				LOGGER.warn("Unrecognized type {}", peerMsg.toJson());
 				break;
 		}
     }
 
-    private void onHandShakeAck(JsonObject content) {
+	private void onHandShakeAck(JsonObject content) {
 		if (currentState == State.WAIT_HANDSHAKE_ACK) {
 			currentState = State.READY;
 			
@@ -101,6 +104,15 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 		}
 	}
 
+    private void onPeerList(JsonObject content) {
+		if (currentState != State.READY) {
+    		LOGGER.warn("Peer {}:{} has not replied HANDSHAKE msg, rejecting PEER_LIST msg", remoteHostAddress, remoteHostPort);
+			return;
+		}
+		PeerRegistryMessage peerRegistryMessage = new PeerRegistryMessage(PeerRegistryMessage.LIST, content);
+		eventBus.send(Topic.PEER_REGISTRY, peerRegistryMessage.toJson());
+		
+	}
     private static enum State {
     	
     	INIT,
