@@ -85,7 +85,7 @@ public class TestPeerManagerVerticles {
     
     @Test
     public void testIncomingHandshake(Vertx vertx, VertxTestContext testContext) throws Throwable {
-        Checkpoint strictCheckpoint = testContext.strictCheckpoint(2);
+        Checkpoint strictCheckpoint = testContext.strictCheckpoint(1);
     	
     	EventBus eventBus = vertx.eventBus();
     	
@@ -102,7 +102,6 @@ public class TestPeerManagerVerticles {
         handShake.setTimestamp(System.currentTimeMillis());
         handShake.setBestHeight(1);
 
-        AtomicBoolean flip = new AtomicBoolean(false);
     	eventBus.consumer(Topic.REMOTE_PEER_OUTBOX, handler -> {
             JsonObject body = (JsonObject) handler.body();
             JsonObject packetContent = body.getJsonObject("content", new JsonObject());
@@ -112,16 +111,9 @@ public class TestPeerManagerVerticles {
 
             assertThat("A " + PeerMessage.HANDSHAKE + " was expected", msgType,
                     CoreMatchers.equalTo(PeerMessage.HANDSHAKE));
-            if (!flip.getAndSet(true)) {
-                assertThat("Unexpected host", packetHost, CoreMatchers.equalTo(remoteHostAddress));
-                assertThat("Unexpected port", packetPort, CoreMatchers.equalTo(remoteOutgoingHostPort));
-                strictCheckpoint.flag();
-            }
-            else {
-                assertThat("Unexpected host", packetHost, CoreMatchers.equalTo(remoteHostAddress));
-                assertThat("Unexpected port", packetPort, CoreMatchers.equalTo(remoteIncomingHostPort));
-                strictCheckpoint.flag();
-            }
+            assertThat("Unexpected host", packetHost, CoreMatchers.equalTo(remoteHostAddress));
+            assertThat("Unexpected port", packetPort, CoreMatchers.equalTo(remoteOutgoingHostPort));
+            strictCheckpoint.flag();
 
     	});
     	

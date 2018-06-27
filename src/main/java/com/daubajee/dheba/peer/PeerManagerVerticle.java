@@ -44,29 +44,6 @@ public class PeerManagerVerticle extends AbstractVerticle {
 
     private void onPeriodStream(Long tick) {
 
-        List<Peer> outgoingConnections = peers.values()
-            .stream()
-            .filter(con -> con.getOutgoingPort() > 0)
-            .collect(Collectors.toList());
-
-        if (outgoingConnections.size() > MAX_OUTGOING_CONNECTION) {
-            return;
-        }
-        
-        peers.values()
-            .stream()
-            .filter(con -> con.getOutgoingPort() == 0 && con.getIncomingPort() > 0)
-            .filter(con -> con.getHandshake() != null)
-            .limit(1)
-            .forEach(con -> {
-                HandShake handshake = con.getHandshake();
-                String remoteHostAddress = handshake.getAddrMe();
-                String remoteHost = getHostnameFromAddress(remoteHostAddress);
-                Integer remotePort = getPortFromAddress(remoteHostAddress);
-                RemotePeerEvent event = new RemotePeerEvent(remoteHost, remotePort, RemotePeerEvent.NEW_PEER);
-                eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
-                LOGGER.info("Creating an outgoing connection to an incoming Peer {}", remoteHostAddress);
-            });
     }
 
     private void onRemotePeerEvent(Message<JsonObject> msg) {
