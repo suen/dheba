@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
 import com.daubajee.dheba.peer.msg.HandShake;
-import com.daubajee.dheba.peer.msg.PeerList;
 import com.daubajee.dheba.peer.msg.PeerMessage;
 
 import io.vertx.core.AbstractVerticle;
@@ -25,9 +24,11 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 
     private final Logger LOGGER;
 
-    private MessageConsumer<JsonObject> consumer;
+    private MessageConsumer<JsonObject> inboxConsumer;
 
     private State currentState = State.INIT;
+
+	private MessageConsumer<JsonObject> commandConsumer;
     
     public PeerOutgoingChannel(String remoteHostAddress, int remoteHostPort) {
         this.remoteHostAddress = remoteHostAddress;
@@ -41,8 +42,10 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 
         eventBus = vertx.eventBus();
 
-        consumer = eventBus.consumer(getRemotePeerInboxTopic(), this::onInboxMessage);
+        inboxConsumer = eventBus.consumer(getRemotePeerInboxTopic(), this::onInboxMessage);
 
+        commandConsumer = eventBus.consumer(getRemotePeerCommandTopic(), this::onCommandMessage);
+        
         vertx.setTimer(1000, handler -> {
             
             Config config = new Config(vertx);
@@ -60,11 +63,16 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 
     @Override
     public void stop() throws Exception {
-        consumer.unregister();
+        inboxConsumer.unregister();
+        commandConsumer.unregister();
     }
 
     private String getRemotePeerInboxTopic() {
         return String.format("%s:%d-INBOX", remoteHostAddress, remoteHostPort);
+    }
+    
+    private String getRemotePeerCommandTopic() {
+    	return String.format("%s:%d-COMMAND", remoteHostAddress, remoteHostPort);
     }
 
     private void onInboxMessage(Message<JsonObject> msg) {
@@ -85,7 +93,22 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 				break;
 		}
     }
-
+    
+    private void onCommandMessage(Message<JsonObject> msg) {
+    	JsonObject body = msg.body();
+    	Command cmd = Command.from(body);
+    	String type = cmd.getType();
+    	LOGGER.info("Message of type {} received on {}", type, getRemotePeerCommandTopic());
+        switch (type) {
+	        case Command.ASK_PEER_LIST :
+	        	askForPeers(cmd.getContent());
+				break;
+			default:
+				LOGGER.warn("Unrecognized type {}", cmd.toJson());
+				break;
+        }
+    }
+    
 	private void onHandShakeAck(JsonObject content) {
 		if (currentState == State.WAIT_HANDSHAKE_ACK) {
 			currentState = State.READY;
@@ -113,6 +136,13 @@ public class PeerOutgoingChannel extends AbstractVerticle {
 		eventBus.send(Topic.PEER_REGISTRY, peerRegistryMessage.toJson());
 		
 	}
+    
+    private void askForPeers(JsonObject getPeerListJson) {
+    	PeerMessage peerMessage = new PeerMessage(PeerMessage.GET_PEER_LIST, getPeerListJson);
+    	RemotePeerPacket remotePeerPacket = new RemotePeerPacket(remoteHostAddress, remoteHostPort, peerMessage.toJson());
+    	eventBus.publish(Topic.REMOTE_PEER_OUTBOX, remotePeerPacket.toJson());
+    }
+    
     private static enum State {
     	
     	INIT,
