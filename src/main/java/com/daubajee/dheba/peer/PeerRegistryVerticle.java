@@ -71,21 +71,20 @@ public class PeerRegistryVerticle extends AbstractVerticle {
             .filter(peer -> peer.isActive())
             .count();
 
-        if (activeCount > config.getMaxPeerConnections()) {
-            return;
+        if (activeCount <= config.getMaxPeerConnections()) {
+        	registry
+        	.values()
+        	.stream()
+        	.filter(peer -> peer.isOutgoing() && !peer.isActive())
+        	.limit(1)
+        	.forEach(peer -> {
+        		String address = peer.getAddress();
+        		int port = peer.getOutgoingPort();
+        		RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
+        		eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
+        	});
         }
         
-        registry
-            .values()
-            .stream()
-            .filter(peer -> peer.isOutgoing() && !peer.isActive())
-            .limit(1)
-            .forEach(peer -> {
-                String address = peer.getAddress();
-                int port = peer.getOutgoingPort();
-                RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
-                eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
-            });
         
     }
 
