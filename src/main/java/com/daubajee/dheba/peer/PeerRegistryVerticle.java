@@ -1,5 +1,6 @@
 package com.daubajee.dheba.peer;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,7 +86,18 @@ public class PeerRegistryVerticle extends AbstractVerticle {
         	});
         }
         
-        
+        long peerCount = registry.values().stream().map(peer -> peer.isOutgoing()).count();
+        if (peerCount < 100) {
+        	registry.values()
+        		.stream()
+        		.filter(peer -> peer.isOutgoing() && peer.isActive())
+        		.forEach(peer -> {
+        			String cmdTopic = Topic.getRemotePeerCommandTopic(peer.getAddress(), peer.getOutgoingPort());
+        			GetPeerList getPeerList = new GetPeerList(100, Collections.emptyList());
+        			Command cmd = new Command(Command.ASK_PEER_LIST, getPeerList.toJson());
+        			eventBus.publish(cmdTopic, cmd.toJson());
+        		});
+        }
     }
 
     private void onPeerRegistryMsg(Message<JsonObject> msg) {
