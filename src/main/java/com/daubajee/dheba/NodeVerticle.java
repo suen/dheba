@@ -116,8 +116,9 @@ public class NodeVerticle extends AbstractVerticle {
                 return;
             }
             Message<Object> result = handler.result();
-            JsonObject peerListJson = (JsonObject) result.body();
-            PeerList peerList = PeerList.from(peerListJson);
+            JsonObject registMsgJson = (JsonObject) result.body();
+            PeerRegistryMessage registryMsg = PeerRegistryMessage.from(registMsgJson);
+            PeerList peerList = PeerList.from(registryMsg.getContent());
             String peersStr = new JsonArray(peerList.getPeers()).toString();
             response.putHeader("Content-Length", String.valueOf(peersStr.length()));
             response.putHeader("Content-Type", "application/json");
