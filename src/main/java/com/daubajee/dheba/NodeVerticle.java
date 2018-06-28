@@ -1,9 +1,13 @@
 package com.daubajee.dheba;
 
+import java.util.Collections;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.daubajee.dheba.peer.PeerVerticle;
+import com.daubajee.dheba.peer.PeerRegistryMessage;
+import com.daubajee.dheba.peer.msg.GetPeerList;
+import com.daubajee.dheba.peer.msg.PeerList;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.DeliveryOptions;
@@ -12,6 +16,7 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -97,7 +102,10 @@ public class NodeVerticle extends AbstractVerticle {
 
     private void handlePeers(RoutingContext cxt) {
 
-        eventBus.send(PeerVerticle.GET_PEER_LIST, new JsonObject(), handler -> {
+        GetPeerList getPeerList = new GetPeerList(10000, Collections.emptyList());
+        PeerRegistryMessage peerListMsg = new PeerRegistryMessage(PeerRegistryMessage.GET_LIST, getPeerList.toJson());
+        
+        eventBus.send(Topic.PEER_REGISTRY, peerListMsg.toJson(), handler -> {
             HttpServerResponse response = cxt.response();
             if (handler.failed()) {
                 String msg = handler.cause().getMessage();
@@ -108,8 +116,9 @@ public class NodeVerticle extends AbstractVerticle {
                 return;
             }
             Message<Object> result = handler.result();
-            JsonObject peers = (JsonObject) result.body();
-            String peersStr = peers.toString();
+            JsonObject peerListJson = (JsonObject) result.body();
+            PeerList peerList = PeerList.from(peerListJson);
+            String peersStr = new JsonArray(peerList.getPeers()).toString();
             response.putHeader("Content-Length", String.valueOf(peersStr.length()));
             response.putHeader("Content-Type", "application/json");
             response.write(peersStr);
