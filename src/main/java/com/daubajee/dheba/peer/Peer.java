@@ -72,6 +72,10 @@ public class Peer {
         return lastActivity != Instant.EPOCH;
     }
 
+    public boolean hasHandshaked() {
+        return handshake != null && handshake.isValid();
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
