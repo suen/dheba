@@ -91,6 +91,18 @@ public class PeerRegistryVerticle extends AbstractVerticle {
             		RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
             		eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
             	});
+        	registry
+        	.values()
+        	.stream()
+        	.filter(peer -> peer.isOnlyIncomingHandshaked())
+        	.limit(1)
+        	.forEach(peer -> {
+        	    String address = peer.getAddress();
+        	    int port = peer.getOutgoingPortFromHandshake();
+        	    peer.setActiveNow();
+        	    RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
+        	    eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
+        	});
         }
     }
 
@@ -251,6 +263,9 @@ public class PeerRegistryVerticle extends AbstractVerticle {
             	Integer port = containerAdrPort.get().getPort();
             	handshake.setAddrMe(new AddressPort(remoteHostAddress, port).toString());
             	peer.setHandshake(handshake);
+                if (!peer.isOutgoing()) {
+                    peer.setOutgoingPort(port);
+                }
             });
         } else {
         	LOGGER.warn("Invalide HandShake msg : {}", remotePeerEvent.getContent());
