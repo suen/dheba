@@ -76,11 +76,12 @@ public class PeerRegistryVerticle extends AbstractVerticle {
         	registry
         	.values()
         	.stream()
-        	.filter(peer -> peer.isOutgoing() && !peer.isActive())
+        	.filter(peer -> peer.isOutgoing() && !peer.isActive() && peer.canBeAttempted())
         	.limit(1)
         	.forEach(peer -> {
         		String address = peer.getAddress();
         		int port = peer.getOutgoingPort();
+        		peer.setActiveNow();
         		RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
         		eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
         	});
@@ -90,7 +91,7 @@ public class PeerRegistryVerticle extends AbstractVerticle {
         if (peerCount < 100) {
         	registry.values()
         		.stream()
-        		.filter(peer -> peer.isOutgoing() && peer.isActive())
+        		.filter(peer -> peer.isOutgoing() && peer.isActive() && peer.hasHandshaked())
         		.forEach(peer -> {
         			String cmdTopic = Topic.getRemotePeerCommandTopic(peer.getAddress(), peer.getOutgoingPort());
         			GetPeerList getPeerList = new GetPeerList(100, Collections.emptyList());
