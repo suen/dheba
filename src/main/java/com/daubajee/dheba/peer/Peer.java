@@ -1,8 +1,11 @@
 package com.daubajee.dheba.peer;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.function.Supplier;
 
 import com.daubajee.dheba.peer.msg.HandShake;
+import com.google.common.collect.Lists;
 
 public class Peer {
 
@@ -15,6 +18,8 @@ public class Peer {
     private HandShake handshake;
 
     private Instant lastActivity = Instant.EPOCH;
+
+    private List<Instant> connection = Lists.newArrayList();
 
     public Peer(String address) {
         this.address = address;
@@ -54,6 +59,7 @@ public class Peer {
 
     public void setActiveNow() {
         this.lastActivity = Instant.now();
+        connection.add(this.lastActivity);
     }
 
     public void deactivate() {
@@ -74,6 +80,17 @@ public class Peer {
 
     public boolean hasHandshaked() {
         return handshake != null && handshake.isValid();
+    }
+
+    public boolean canBeAttempted() {
+        boolean empty = connection.isEmpty();
+        Supplier<Boolean> lastTriedIs10SecAgo = () -> {
+            Instant last = connection.get(connection.size() - 1);
+            Instant now = Instant.now().minusSeconds(10);
+            boolean b = last.compareTo(now) < 0;
+            return b;
+        };
+        return empty || lastTriedIs10SecAgo.get();
     }
 
     @Override
