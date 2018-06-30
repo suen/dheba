@@ -1,5 +1,7 @@
 package com.daubajee.dheba.peer;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,52 +55,68 @@ public class PeerRegistryVerticle extends AbstractVerticle {
 
         Set<AddressPort> peerSeeds = config.getPeerSeeds();
 
-        peerSeeds.stream().map(addrPort -> {
-            Peer peer = new Peer(addrPort.getAddress());
-            peer.setOutgoingPort(addrPort.getPort());
-            return peer;
-        })
-        .forEach(peer -> {
-            registry.put(peer.getAddress(), peer);
+        peerSeeds.stream().forEach(addrPort -> {
+            PeerList peerList = new PeerList(Arrays.asList(addrPort.toString()));
+            PeerRegistryMessage registryMsg = new PeerRegistryMessage(PeerRegistryMessage.LIST, peerList.toJson());
+            eventBus.publish(Topic.PEER_REGISTRY, registryMsg.toJson());
         });
         
     }
 
     private void cycle(Long tick) {
         LOGGER.info("Running cycle");
+
+        addNewRemotePeer();
+        
+        askPeerList();
+    }
+
+    private void addNewRemotePeer() {
         long activeCount = registry
             .values()
             .stream()
-            .filter(peer -> peer.isActive())
+            .filter(peer -> peer.isOutgoing() && peer.isActive())
             .count();
 
         if (activeCount <= config.getMaxPeerConnections()) {
         	registry
-        	.values()
-        	.stream()
-        	.filter(peer -> peer.isOutgoing() && !peer.isActive() && peer.canBeAttempted())
-        	.limit(1)
-        	.forEach(peer -> {
-        		String address = peer.getAddress();
-        		int port = peer.getOutgoingPort();
-        		peer.setActiveNow();
-        		RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
-        		eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
-        	});
+            	.values()
+            	.stream()
+            	.filter(peer -> peer.isOutgoingUnconnected())
+            	.limit(1)
+            	.forEach(peer -> {
+            		String address = peer.getAddress();
+            		int port = peer.getOutgoingPort();
+            		peer.setActiveNow();
+            		RemotePeerEvent event = new RemotePeerEvent(address, port, RemotePeerEvent.NEW_PEER);
+            		eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
+            	});
         }
-        
+    }
+
+    private void askPeerList() {
         long peerCount = registry.values().stream().map(peer -> peer.isOutgoing()).count();
         if (peerCount < 100) {
-        	registry.values()
-        		.stream()
-        		.filter(peer -> peer.isOutgoing() && peer.isActive() && peer.hasHandshaked())
-        		.forEach(peer -> {
-        			String cmdTopic = Topic.getRemotePeerCommandTopic(peer.getAddress(), peer.getOutgoingPort());
-        			GetPeerList getPeerList = new GetPeerList(100, Collections.emptyList());
-        			Command cmd = new Command(Command.ASK_PEER_LIST, getPeerList.toJson());
-        			eventBus.publish(cmdTopic, cmd.toJson());
-        		});
+            registry.values()
+                .stream()
+                .filter(peer -> peer.isOutgoing() && peer.isActive() && peer.hasHandshaked()
+                            && peer.canBeAttempted())
+                .forEach(peer -> {
+                    String cmdTopic = Topic.getRemotePeerCommandTopic(peer.getAddress(), peer.getOutgoingPort());
+                    GetPeerList getPeerList = new GetPeerList(100, Collections.emptyList());
+                    Command cmd = new Command(Command.ASK_PEER_LIST, getPeerList.toJson());
+                    eventBus.publish(cmdTopic, cmd.toJson());
+                    peer.setActiveNow();
+                });
         }
+    }
+
+    private void debugRegistry() {
+        Collection<Peer> peers = registry.values();
+        String peerStr = peers.stream().map(Object::toString).collect(Collectors.joining(System.lineSeparator()));
+        LOGGER.info("Registry : " + peerStr);
+        PeerList list = getList(new JsonObject());
+        LOGGER.info("PeerList : " + list.getPeers());
     }
 
     private void onPeerRegistryMsg(Message<JsonObject> msg) {
@@ -115,7 +133,7 @@ public class PeerRegistryVerticle extends AbstractVerticle {
 
         switch (type) {
             case PeerRegistryMessage.GET_LIST :
-                PeerList plist = getList(registryMessage);
+                PeerList plist = getList(registryMessage.toJson());
                 JsonObject reply = new PeerRegistryMessage(PeerRegistryMessage.LIST, plist.toJson()).toJson();
                 msg.reply(reply);
                 break;
@@ -161,25 +179,48 @@ public class PeerRegistryVerticle extends AbstractVerticle {
 
     private void createEntry(PeerList list) {
 
-        list.getPeers()
+        long nbPeers = list.getPeers()
             .stream()
-            .forEach(adrPortStr -> {
+            .filter(adrPortStr -> !isSelfAddress(adrPortStr))
+            .mapToInt(adrPortStr -> {
                 Optional<AddressPort> op = AddressPort.from(adrPortStr);
                 if (!op.isPresent()) {
                     LOGGER.error("Invalid address:pot {}", adrPortStr);
-                    return;
+                    return 0;
                 }
                 AddressPort addressPort = op.get();
                 String address = addressPort.getAddress();
-                Peer peer = registry.computeIfAbsent(address, k -> new Peer(address));
+                Peer peer = registry.computeIfAbsent(address, k -> new Peer(k));
                 peer.setOutgoingPort(addressPort.getPort());
-            });
+                return 1;
+            })
+            .count();
+        LOGGER.info("{} peers added to internal registry", nbPeers);
+        debugRegistry();
     }
 
     private void createEntry(RemotePeerEvent remotePeerEvent) {
         String remoteHostAddress = remotePeerEvent.getRemoteHostAddress();
         Peer peer = registry.computeIfAbsent(remoteHostAddress, k -> new Peer(remoteHostAddress));
         peer.setIncomingPort(remotePeerEvent.getRemoteHostPort());
+        debugRegistry();
+    }
+
+    private boolean isSelfAddress(String adrPortStr) {
+        int p2pPort = config.getP2PPort();
+        boolean present = registry.values()
+            .stream()
+            .filter(peer -> peer.hasHandshaked())
+            .map(peer -> peer.getHandshake().getAddrYou())
+            .map(selfAddrStr -> AddressPort.from(selfAddrStr).get())
+            .map(selfAddr -> new AddressPort(selfAddr.getAddress(), p2pPort))
+            .anyMatch(selfAddr -> selfAddr.toString().equals(adrPortStr));
+        if (present) {
+            LOGGER.info("{} is local address", adrPortStr);
+        } else {
+            LOGGER.info("{} is NOT local address", adrPortStr);
+        }
+        return present;
     }
 
     private void updateEntryInstant(RemotePeerEvent remotePeerEvent) {
@@ -189,6 +230,7 @@ public class PeerRegistryVerticle extends AbstractVerticle {
             return;
         }
         peer.deactivate();
+        debugRegistry();
     }
 
     private void updateRegistryOnHandShake(RemotePeerEvent remotePeerEvent) {
@@ -213,12 +255,11 @@ public class PeerRegistryVerticle extends AbstractVerticle {
         } else {
         	LOGGER.warn("Invalide HandShake msg : {}", remotePeerEvent.getContent());
         }
-        
+        debugRegistry();
     }
 
-    private PeerList getList(PeerRegistryMessage registryMessage) {
-        JsonObject content = registryMessage.getContent();
-        GetPeerList getPeerList = GetPeerList.from(content);
+    private PeerList getList(JsonObject getPeerListJson) {
+        GetPeerList getPeerList = GetPeerList.from(getPeerListJson);
         int max = getPeerList.getMax() > 0 ? getPeerList.getMax() : Integer.MAX_VALUE;
         List<String> excludes = getPeerList.getExclude();
 
@@ -233,7 +274,7 @@ public class PeerRegistryVerticle extends AbstractVerticle {
         List<String> peerList2 = registry
 	        .values()
 	        .stream()
-	        .filter(peer -> !peer.isOutgoing() && peer.isIncoming() && peer.getHandshake().isValid())
+	        .filter(peer -> peer.isOnlyIncomingHandshaked())
 	        .map(peer -> peer.getHandshake().getAddrMe())
 	        .filter(adrPort -> !excludes.contains(adrPort))
 	        .collect(Collectors.toList());
