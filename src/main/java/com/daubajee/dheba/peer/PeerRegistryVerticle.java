@@ -133,7 +133,7 @@ public class PeerRegistryVerticle extends AbstractVerticle {
 
         switch (type) {
             case PeerRegistryMessage.GET_LIST :
-                PeerList plist = getList(registryMessage.toJson());
+                PeerList plist = getList(registryMessage.getContent());
                 JsonObject reply = new PeerRegistryMessage(PeerRegistryMessage.LIST, plist.toJson()).toJson();
                 msg.reply(reply);
                 break;
