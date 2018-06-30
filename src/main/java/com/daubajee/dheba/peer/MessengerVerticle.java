@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
 
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.EventBus;
@@ -82,11 +84,16 @@ public class MessengerVerticle extends AbstractVerticle {
         	return;
         }
         
-        getorCreateRemoteSocket(hostAddress, port).thenAccept(socket -> {
+        CompletableFuture<NetSocket> netSocketContainer = getorCreateRemoteSocket(hostAddress, port);
+        Observable.fromFuture(netSocketContainer, Schedulers.io()).subscribe(socket -> {
             Buffer socketFrame = PeerUtils.toSocketFrame(content);
             socket.write(socketFrame);
             LOGGER.info("Message sent to " + hostAddress + ":" + port);
             msg.reply(new JsonObject());
+        }, throwable -> {
+            LOGGER.info("Peer disconnected : " + hostAddress + ":" + port);
+            RemotePeerEvent event = new RemotePeerEvent(hostAddress, port, RemotePeerEvent.DISCONNECTED);
+            eventBus.publish(Topic.REMOTE_PEER_EVENTS, event.toJson());
         });
     }
 
@@ -118,6 +125,7 @@ public class MessengerVerticle extends AbstractVerticle {
             String remote = remoteHost + ":" + port;
             if (handler.failed()) {
                 LOGGER.info("Connection to remoteAddress '" + remote + "' failed");
+                netSocketContainer.completeExceptionally(handler.cause());
                 return;
             } else {
                 LOGGER.info("Connected to remoteAddress: " + remote);
