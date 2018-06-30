@@ -1,9 +1,7 @@
 package com.daubajee.dheba.peer;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,11 +122,6 @@ public class PeerManagerVerticle extends AbstractVerticle {
         int remoteHostPort = remotePeerEvent.getRemoteHostPort();
         PeerOutgoingChannel outgoing = new PeerOutgoingChannel(remoteHostAddress, remoteHostPort);
         Peer peer = peers.computeIfAbsent(remoteHostAddress, ra -> new Peer(ra));
-
-        if (peer.getOutgoingPort() != 0) {
-            LOGGER.warn("An outgoing connection already exists for {}", remoteHostAddress);
-            return;
-        }
         peer.setOutgoingPort(remoteHostPort);
 
         String remotePeerId = remotePeerId(remotePeerEvent);
@@ -163,6 +156,11 @@ public class PeerManagerVerticle extends AbstractVerticle {
 	}
 
     private void deployVerticle(Verticle incomingChannel, String remotePeerId) {
+        if (deployedVerticles.containsKey(remotePeerId)) {
+            LOGGER.error("A verticle is already deployed for {}", remotePeerId);
+            return;
+        }
+
         vertx.deployVerticle(incomingChannel, handler -> {
             if (handler.failed()) {
                 LOGGER.error("Deployment of a Verticle {} failed", incomingChannel.getClass().getSimpleName());
@@ -178,7 +176,15 @@ public class PeerManagerVerticle extends AbstractVerticle {
         String remotePeerId = remotePeerId(remotePeerEvent);
         if (deployedVerticles.containsKey(remotePeerId)) {
             String id = deployedVerticles.remove(remotePeerId);
-            vertx.undeploy(id);
+            vertx.undeploy(id, handler -> {
+                if (!handler.succeeded()) {
+                    LOGGER.error("Undeployment of a Verticle for {} failed", remotePeerId);
+                } else {
+                    LOGGER.info("Verticle for {} undeployed", remotePeerId);
+                }
+                String previousId = deployedVerticles.get(remotePeerId);
+                LOGGER.info("Verticle {} status {}", remotePeerId, previousId);
+            });
         }
     }
 
