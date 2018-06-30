@@ -66,10 +66,28 @@ public class Peer {
         this.lastActivity = Instant.EPOCH;
     }
 
+    public int getOutgoingPortFromHandshake() {
+        if (this.hasHandshaked()) {
+            String addrMe = handshake.getAddrMe();
+            return AddressPort.from(addrMe)
+                .map(adr -> adr.getPort())
+                .orElse(0);
+        }
+        return 0;
+    }
+    
     public boolean isOutgoing() {
         return this.outgoingPort != 0;
     }
     
+    public boolean isOutgoingUnconnected() {
+        return this.isOutgoing() && !this.isActive() && this.canBeAttempted();
+    }
+
+    public boolean isOnlyIncomingHandshaked() {
+        return !this.isOutgoing() && this.isIncoming() && this.hasHandshaked();
+    }
+
     public boolean isIncoming() {
     	return this.incomingPort != 0;
     }
@@ -116,6 +134,11 @@ public class Peer {
         } else if (!address.equals(other.address))
             return false;
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return "Peer [address=" + address + ", incomingPort=" + incomingPort + ", outgoingPort=" + outgoingPort + "]";
     }
 
 }
