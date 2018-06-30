@@ -1,5 +1,6 @@
 package com.daubajee.dheba.peer.msg;
 
+import com.daubajee.dheba.peer.AddressPort;
 import com.daubajee.dheba.utils.JsonUtils;
 
 import io.vertx.core.json.JsonObject;
@@ -78,8 +79,9 @@ public class HandShake {
     
     public boolean isValid() {
         return !version.isEmpty() && !services.isEmpty() && timestamp != 0
-                && !addrYou.isEmpty() && !addrMe.isEmpty() && !agent.isEmpty()
-                && bestHeight != 0;
+                && !addrYou.isEmpty() && AddressPort.from(addrYou).isPresent()
+                && !addrMe.isEmpty() && AddressPort.from(addrMe).isPresent()
+                && !agent.isEmpty() && bestHeight != 0;
     }
 
     public JsonObject toJson() {
