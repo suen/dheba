@@ -10,6 +10,8 @@ public class Topic {
 
     public static final String PEER_REGISTRY = "PEER_REGISTRY";
     
+    public static final String BLOCK = "BLOCK";
+
     public static String getRemotePeerInboxTopic(String hostAddress, int port) {
     	return String.format("%s:%d-INBOX", hostAddress, port);
     }
