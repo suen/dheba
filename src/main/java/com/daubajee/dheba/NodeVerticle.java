@@ -5,7 +5,6 @@ import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.daubajee.dheba.block.BlockVerticle;
 import com.daubajee.dheba.peer.PeerRegistryMessage;
 import com.daubajee.dheba.peer.msg.GetPeerList;
 import com.daubajee.dheba.peer.msg.PeerList;
@@ -60,7 +59,7 @@ public class NodeVerticle extends AbstractVerticle {
     }
 
     private void handleGetBlock(RoutingContext cxt) {
-        JsonObject requestObj = MsgUtils.createRequest(BlockVerticle.GET_ALL_BLOCKS);
+        JsonObject requestObj = MsgUtils.createRequest("");
         HttpServerResponse response = cxt.response();
 
         eventBus.send("BLOCK", requestObj, result -> {
@@ -82,7 +81,7 @@ public class NodeVerticle extends AbstractVerticle {
         String data = cxt.getBody().toString();
         HttpServerResponse response = cxt.response();
 
-        JsonObject request = MsgUtils.createRequest(BlockVerticle.MINE_NEW_BLOCK, data);
+        JsonObject request = MsgUtils.createRequest("", data);
 
         DeliveryOptions options = MsgUtils.deliveryOpWithTimeout(60000);
 
