@@ -1,8 +1,13 @@
 package com.daubajee.dheba.block;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
+import com.daubajee.dheba.block.msg.BlockHeader;
 import com.google.common.collect.Range;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
@@ -19,18 +24,64 @@ public class Blockchain {
 
     private static final int TIMESTAMP_MARGIN = 60000;
 
+    private Map<String, Block> blockIndex = new HashMap<>();
+
+    private Map<String, String> nextBlockHashIndex = new HashMap<>();
+
     private List<Block> chain = new ArrayList<Block>();
 
     public Blockchain() {
-        chain.add(gensisBlock());
+        add(gensisBlock());
     }
 
     private static final Logger LOGGER = LoggerFactory
             .getLogger(Blockchain.class);
 
     public static Block gensisBlock() {
-        String hash = calculateHash(0, null, 1515846670488L, "Here comes the sun", 5328471, 6);
-        return new Block(0, hash, null, 1515846670488L, 5328471, 6, "Here comes the sun");
+        String genesisMsg = "Here comes the sun";
+        String hash = calculateHash(0, null, 1515846670488L, genesisMsg, 5328471, 6);
+        return new Block(0, hash, null, 1515846670488L, 5328471, 6, genesisMsg);
+    }
+
+    public List<BlockHeader> getHeaders(BlockHeader afterHeader, int limit) {
+
+        Block block = blockIndex.get(afterHeader.getHash());
+        if (block == null || block.getIndex() != afterHeader.getHeight()) {
+            return Collections.emptyList();
+        }
+
+        List<BlockHeader> replyHeaders = new ArrayList<>();
+
+        String startingHash = block.getHash();
+        String nextBlockHash = startingHash;
+        while (nextBlockHash != null) {
+            Block nextBlock = blockIndex.get(nextBlockHash);
+            BlockHeader blockHeader = new BlockHeader(nextBlock.getIndex(), nextBlockHash);
+            replyHeaders.add(blockHeader);
+            nextBlockHash = nextBlockHashIndex.get(startingHash);
+        }
+
+        return replyHeaders;
+    }
+
+    public Optional<Block> getBlock(BlockHeader blockHeader) {
+        Block block = blockIndex.get(blockHeader.getHash());
+        if (block == null || block.getIndex() != blockHeader.getHeight()) {
+            return Optional.empty();
+        }
+        return Optional.of(block);
+    }
+
+    private void add(Block block) {
+        if (!block.isValid()) {
+            return;
+        }
+        String blockHash = block.getHash();
+        String previousHash = block.getPreviousHash();
+        if (previousHash != null) {
+            nextBlockHashIndex.put(previousHash, blockHash);
+        }
+        blockIndex.put(blockHash, block);
     }
 
     public List<Block> getChain() {
