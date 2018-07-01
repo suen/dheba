@@ -84,6 +84,16 @@ public class Block {
     public void setDifficulty(long difficulty) {
         this.difficulty = difficulty;
     }
+    
+    public boolean isValid() {
+        return index > -1
+                && !hash.isEmpty()
+                && (!previousHash.isEmpty() || index == 0)
+                && timestamp > 0
+                && nonce >= 0
+                && difficulty >= 0
+                && !data.isEmpty();
+    }
 
     public JsonObject toJson() {
         return new JsonObject()
