@@ -106,7 +106,7 @@ public class Block {
             .put("data", data);
     }
 
-    public static Block fromJson(JsonObject jsonObject) {
+    public static Block from(JsonObject jsonObject) {
         Integer index = jsonObject.getInteger("index");
         String hash = jsonObject.getString("hash");
         String previousHash = jsonObject.getString("previousHash");
