@@ -109,7 +109,7 @@ public class BlockVerticle extends AbstractVerticle {
     }
 
     private void handleMineNewBlock(String data, Consumer<Object> object) {
-        List<Block> blockchain = blocks.getBlockchain();
+        List<Block> blockchain = blocks.getChain();
         Block latestBlock = blockchain.get(blockchain.size() - 1);
         long difficulty = Blocks.getDifficulty(blockchain);
         long currentTimestamp = System.currentTimeMillis();
@@ -122,7 +122,7 @@ public class BlockVerticle extends AbstractVerticle {
     }
 
     private void handleGetAllBlocks(Consumer<Object> consumer) {
-        List<Block> blockchain = blocks.getBlockchain();
+        List<Block> blockchain = blocks.getChain();
         List<JsonObject> jsonBlocks = blockchain.stream()
             .map(block -> block.toJson())
             .collect(Collectors.toList());

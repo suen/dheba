@@ -19,10 +19,10 @@ public class Blocks {
 
     private static final int TIMESTAMP_MARGIN = 60000;
 
-    private List<Block> blockchain = new ArrayList<Block>();
+    private List<Block> chain = new ArrayList<Block>();
 
     public Blocks() {
-        blockchain.add(gensisBlock());
+        chain.add(gensisBlock());
     }
 
     private static final Logger LOGGER = LoggerFactory
@@ -33,8 +33,8 @@ public class Blocks {
         return new Block(0, hash, null, 1515846670488L, 5328471, 6, "Here comes the sun");
     }
 
-    public List<Block> getBlockchain() {
-        return blockchain;
+    public List<Block> getChain() {
+        return chain;
     }
 
     public static String calculateHash(int index, String previousHash,
@@ -108,8 +108,8 @@ public class Blocks {
     }
     
     public void replaceChain(List<Block> newBlockChain) {
-        if (isValidChain(newBlockChain) && newBlockChain.size() > blockchain.size()) {
-            blockchain = newBlockChain;
+        if (isValidChain(newBlockChain) && newBlockChain.size() > chain.size()) {
+            chain = newBlockChain;
         } else {
             LOGGER.warn("Invalid newBlockchain received");
         }
