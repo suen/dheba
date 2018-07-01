@@ -3,6 +3,7 @@ package com.daubajee.dheba.block;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -14,7 +15,9 @@ import com.daubajee.dheba.Topic;
 import com.daubajee.dheba.block.msg.BlockHeader;
 import com.daubajee.dheba.block.msg.BlockHeaders;
 import com.daubajee.dheba.block.msg.BlockMessage;
+import com.daubajee.dheba.block.msg.GetBlock;
 import com.daubajee.dheba.block.msg.GetHeaders;
+import com.daubajee.dheba.block.msg.OneBlock;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
@@ -64,7 +67,11 @@ public class BlockVerticle extends AbstractVerticle {
                 msg.reply(getHeadersReply.toJson());
                 break;
             case BlockMessage.GET_BLOCK :
-                onGetBlock(blockMsg.getContent());
+                onGetBlock(blockMsg.getContent())
+                    .ifPresent(oneBlock -> {
+                        BlockMessage getBlockReply = new BlockMessage(BlockMessage.BLOCK, oneBlock.toJson());
+                        msg.reply(getBlockReply.toJson());
+                    });
                 break;
             default :
                 LOGGER.warn("Unknown type {}", type);
@@ -88,8 +95,17 @@ public class BlockVerticle extends AbstractVerticle {
         return blockHeaders;
     }
 
-    private void onGetBlock(JsonObject requestJson) {
+    private Optional<OneBlock> onGetBlock(JsonObject requestJson) {
 
+        GetBlock getBlockReq = GetBlock.from(requestJson);
+        if (!getBlockReq.isValid()) {
+            LOGGER.error("GetBlock request invalid, content : {}", requestJson);
+            return Optional.empty();
+        }
+
+        Block gensisBlock = Blocks.gensisBlock();
+        OneBlock blockReply = new OneBlock(gensisBlock);
+        return Optional.of(blockReply);
     }
 
     private void handleMineNewBlock(String data, Consumer<Object> object) {
