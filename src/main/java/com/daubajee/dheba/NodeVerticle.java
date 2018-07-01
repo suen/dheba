@@ -5,6 +5,7 @@ import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.daubajee.dheba.block.BlockVerticle;
 import com.daubajee.dheba.peer.PeerRegistryMessage;
 import com.daubajee.dheba.peer.msg.GetPeerList;
 import com.daubajee.dheba.peer.msg.PeerList;

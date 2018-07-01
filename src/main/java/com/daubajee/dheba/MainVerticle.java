@@ -3,6 +3,7 @@ package com.daubajee.dheba;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.daubajee.dheba.block.BlockVerticle;
 import com.daubajee.dheba.peer.MessengerVerticle;
 import com.daubajee.dheba.peer.PeerRegistryVerticle;
 import com.daubajee.dheba.peer.PeerManagerVerticle;
