@@ -11,7 +11,7 @@ import io.reactivex.Observable;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 
-public class Blocks {
+public class Blockchain {
 
     private static final int BLOCK_GENERATION_INTERVAL = 10;
 
@@ -21,12 +21,12 @@ public class Blocks {
 
     private List<Block> chain = new ArrayList<Block>();
 
-    public Blocks() {
+    public Blockchain() {
         chain.add(gensisBlock());
     }
 
     private static final Logger LOGGER = LoggerFactory
-            .getLogger(Blocks.class);
+            .getLogger(Blockchain.class);
 
     public static Block gensisBlock() {
         String hash = calculateHash(0, null, 1515846670488L, "Here comes the sun", 5328471, 6);

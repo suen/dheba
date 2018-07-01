@@ -29,11 +29,11 @@ public class BlockVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BlockVerticle.class);
 
-    private Blocks blocks;
+    private Blockchain blocks;
 
     @Override
     public void start() throws Exception {
-        blocks = new Blocks();
+        blocks = new Blockchain();
 
         EventBus eventBus = vertx.eventBus();
 
@@ -103,7 +103,7 @@ public class BlockVerticle extends AbstractVerticle {
             return Optional.empty();
         }
 
-        Block gensisBlock = Blocks.gensisBlock();
+        Block gensisBlock = Blockchain.gensisBlock();
         OneBlock blockReply = new OneBlock(gensisBlock);
         return Optional.of(blockReply);
     }
@@ -111,9 +111,9 @@ public class BlockVerticle extends AbstractVerticle {
     private void handleMineNewBlock(String data, Consumer<Object> object) {
         List<Block> blockchain = blocks.getChain();
         Block latestBlock = blockchain.get(blockchain.size() - 1);
-        long difficulty = Blocks.getDifficulty(blockchain);
+        long difficulty = Blockchain.getDifficulty(blockchain);
         long currentTimestamp = System.currentTimeMillis();
-        Block newBlock = Blocks.findNewBlock(latestBlock.getIndex() + 1, latestBlock.getHash(), currentTimestamp, data,
+        Block newBlock = Blockchain.findNewBlock(latestBlock.getIndex() + 1, latestBlock.getHash(), currentTimestamp, data,
                 difficulty);
         blockchain.add(newBlock);
 
