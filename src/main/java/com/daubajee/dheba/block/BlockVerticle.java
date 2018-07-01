@@ -1,8 +1,11 @@
-package com.daubajee.dheba;
+package com.daubajee.dheba.block;
 
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import com.daubajee.dheba.MsgUtils;
+import com.daubajee.dheba.Topic;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
@@ -28,10 +31,10 @@ public class BlockVerticle extends AbstractVerticle {
 
         EventBus eventBus = vertx.eventBus();
 
-        eventBus.consumer("BLOCK").handler(this::handleMessage);
+        eventBus.consumer(Topic.BLOCK, this::handleMessage);
     }
 
-    private void handleMessage(Message<Object> msg) {
+    private void handleMessage(Message<JsonObject> msg) {
         vertx.executeBlocking(handler -> {
             onMessage(msg);
             handler.complete();
@@ -40,8 +43,8 @@ public class BlockVerticle extends AbstractVerticle {
         });
     }
 
-    private void onMessage(Message<Object> msg) {
-        JsonObject msgBody = (JsonObject) msg.body();
+    private void onMessage(Message<JsonObject> msg) {
+        JsonObject msgBody = msg.body();
         String request = msgBody.getString("REQUEST");
         String params = msgBody.getString("PARAMS", "");
 

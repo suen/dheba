@@ -1,4 +1,4 @@
-package com.daubajee.dheba;
+package com.daubajee.dheba.block;
 
 import io.vertx.core.json.JsonObject;
 
