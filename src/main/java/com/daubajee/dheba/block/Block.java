@@ -86,8 +86,12 @@ public class Block {
     }
     
     public boolean isValid() {
+        return isUnmined()
+                && !hash.isEmpty();
+    }
+    
+    public boolean isUnmined() {
         return index > -1
-                && !hash.isEmpty()
                 && (!previousHash.isEmpty() || index == 0)
                 && timestamp > 0
                 && nonce >= 0
