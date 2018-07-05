@@ -12,6 +12,8 @@ public class Topic {
     
     public static final String BLOCK = "BLOCK";
 
+    public static final String BLOCK_MINER = "BLOCK_MINER";
+
     public static String getRemotePeerInboxTopic(String hostAddress, int port) {
     	return String.format("%s:%d-INBOX", hostAddress, port);
     }
