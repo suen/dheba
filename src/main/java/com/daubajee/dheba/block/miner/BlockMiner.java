@@ -66,9 +66,11 @@ public class BlockMiner extends AbstractVerticle {
     }
     private void onMineBlock(Block block) {
         if (!currentBlock.isPresent() || currentBlock.get().getIndex() <= block.getIndex()) {
-            currentBlock = Optional.of(block);
+            LOGGER.info("A new of block of higher index was received, updating inner currentBlock");
+            updateCurrentBlock(block);
+        } else {
+            LOGGER.info("A new of block of lower index was received, discarding ..");
         }
-
     }
 
     private void minerJob() {
@@ -84,15 +86,15 @@ public class BlockMiner extends AbstractVerticle {
             .filter(tick -> currentBlock.isPresent())
             .map(tick -> currentBlock.get())
             .flatMap(rawBlock -> {
-                return findNonce(rawBlock, rawBlock.getNonce(), 10000L);
+                    return findNonce(rawBlock, rawBlock.getNonce(), 10000L);
             })
-            .doOnNext(block -> LOGGER.info("Block mined : {}, nonce : {}", block.isValid(), block.getNonce()))
+            .doOnNext(block -> LOGGER.info("Block #{} - mined : {}, nonce : {}", block.getIndex(), block.isValid(), block.getNonce()))
             .flatMap(block -> {
                 if (block.isValid()) {
                     return Observable.just(block);
                 } else {
-                    block.setNonce(block.getNonce() + 10000L);
-                    currentBlock = Optional.of(block);
+                        block.setNonce(block.getNonce() + 10000L);
+                    updateCurrentBlock(block);
                     return Observable.empty();
                 }
             })
@@ -103,7 +105,20 @@ public class BlockMiner extends AbstractVerticle {
 
     private void onBlockFoundReceived(Block block) {
         if (currentBlock.isPresent() && currentBlock.get().getIndex() <= block.getIndex()) {
+            updateCurrentBlock(block);
+        }
+    }
+
+    private synchronized void updateCurrentBlock(Block block) {
+        if (currentBlock.isPresent() 
+                && currentBlock.get().getIndex() <= block.getIndex()
+                && block.isValid()) {
             currentBlock = Optional.empty();
+        } else if (!currentBlock.isPresent()) {
+            currentBlock = Optional.of(block);
+        } else if (currentBlock.get().getIndex() <= block.getIndex() 
+                && !block.isValid()) {
+            currentBlock = Optional.of(block);
         }
     }
 
@@ -111,21 +126,22 @@ public class BlockMiner extends AbstractVerticle {
         LOGGER.info("Block found : {}", block.toJson());
         BlockMinerMessage msg = new BlockMinerMessage(BlockMinerMessage.BLOCK_FOUND, block.toJson());
         eventBus.publish(Topic.BLOCK_MINER, msg.toJson());
-        currentBlock = Optional.empty();
+        updateCurrentBlock(block);
     }
 
-    private static Observable<Block> findNonce(Block rawBlock, long startNonce, long range) {
+    public static Observable<Block> findNonce(Block rawBlock, long startNonce, long range) {
     
         int index = rawBlock.getIndex();
         String previousHash = rawBlock.getPreviousHash();
         long timestamp = rawBlock.getTimestamp();
         String data = rawBlock.getData();
         long difficulty = rawBlock.getDifficulty();
+        long endNonce = startNonce + range;
     
         return Observable.create(source -> {
             long nonce = startNonce;
             Block lastBlock = null;
-            while (nonce <= startNonce + range) {
+            while (nonce <= endNonce) {
                 String hash = BlockUtils.sha256(index, previousHash, timestamp, data, difficulty, nonce);
                 if (BlockUtils.hashMatchesDifficulty(hash, difficulty)) {
                     lastBlock = new Block(index, hash, previousHash, timestamp, nonce, difficulty, data);
