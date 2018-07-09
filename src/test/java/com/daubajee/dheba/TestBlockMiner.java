@@ -28,7 +28,7 @@ public class TestBlockMiner {
 
 
     @Test
-    public void testRegistry(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void mineGenesisBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
 
         Checkpoint checkpoint = testContext.checkpoint(2);
 
@@ -62,7 +62,7 @@ public class TestBlockMiner {
 
         eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg.toJson());
 
-        testContext.awaitCompletion(5, TimeUnit.MINUTES);
+        testContext.awaitCompletion(1, TimeUnit.MINUTES);
     }
 
 }
