@@ -86,11 +86,11 @@ public class Block {
     }
     
     public boolean isValid() {
-        return isUnmined()
+        return canBeMined()
                 && !hash.isEmpty();
     }
     
-    public boolean isUnmined() {
+    public boolean canBeMined() {
         return index > -1
                 && (!previousHash.isEmpty() || index == 0)
                 && timestamp > 0
