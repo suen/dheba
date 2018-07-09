@@ -50,6 +50,7 @@ public class BlockMiner extends AbstractVerticle {
 
         JsonObject blockJson = blockMinerMsg.getContent();
         Block block = Block.from(blockJson);
+        LOGGER.info("Message of type {} received on {}", type, Topic.BLOCK_MINER);
 
         switch (type) {
             case BlockMinerMessage.MINE_BLOCK :
@@ -65,7 +66,6 @@ public class BlockMiner extends AbstractVerticle {
     }
     private void onMineBlock(Block block) {
         if (!currentBlock.isPresent() || currentBlock.get().getIndex() <= block.getIndex()) {
-            block.setNonce(0);
             currentBlock = Optional.of(block);
         }
 
@@ -84,13 +84,14 @@ public class BlockMiner extends AbstractVerticle {
             .filter(tick -> currentBlock.isPresent())
             .map(tick -> currentBlock.get())
             .flatMap(rawBlock -> {
-                return findNonce(rawBlock, rawBlock.getNonce(), 1000L);
+                return findNonce(rawBlock, rawBlock.getNonce(), 10000L);
             })
+            .doOnNext(block -> LOGGER.info("Block mined : {}, nonce : {}", block.isValid(), block.getNonce()))
             .flatMap(block -> {
                 if (block.isValid()) {
                     return Observable.just(block);
                 } else {
-                    block.setNonce(block.getNonce() + 1000L);
+                    block.setNonce(block.getNonce() + 10000L);
                     currentBlock = Optional.of(block);
                     return Observable.empty();
                 }
@@ -107,7 +108,7 @@ public class BlockMiner extends AbstractVerticle {
     }
 
     private void onBlockFound(Block block) {
-        LOGGER.info("Block found : {}", block);
+        LOGGER.info("Block found : {}", block.toJson());
         BlockMinerMessage msg = new BlockMinerMessage(BlockMinerMessage.BLOCK_FOUND, block.toJson());
         eventBus.publish(Topic.BLOCK_MINER, msg.toJson());
         currentBlock = Optional.empty();
@@ -133,7 +134,7 @@ public class BlockMiner extends AbstractVerticle {
                 nonce++;
             }
             if (lastBlock == null) {
-                lastBlock = new Block(index, null, previousHash, timestamp, nonce, difficulty, data);
+                lastBlock = new Block(index, "", previousHash, timestamp, nonce, difficulty, data);
             }
             source.onNext(lastBlock);
             source.onComplete();
