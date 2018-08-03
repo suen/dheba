@@ -34,8 +34,7 @@ public class Blockchain {
         add(gensisBlock());
     }
 
-    private static final Logger LOGGER = LoggerFactory
-            .getLogger(Blockchain.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Blockchain.class);
 
     public static Block gensisBlock() {
         String genesisMsg = "Here comes the sun";
