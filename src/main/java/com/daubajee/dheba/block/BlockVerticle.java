@@ -73,12 +73,27 @@ public class BlockVerticle extends AbstractVerticle {
                         msg.reply(getBlockReply.toJson());
                     });
                 break;
+            case BlockMessage.BLOCK :
+                BlockHeader header = onIncomingBlock(blockMsg.getContent());
+                msg.reply(header.toJson());
             default :
                 LOGGER.warn("Unknown type {}", type);
                 break;
         }
     }
 
+
+    private BlockHeader onIncomingBlock(JsonObject content) {
+
+        OneBlock oneBLock = OneBlock.from(content);
+
+        Block block = oneBLock.getBlock();
+        String hash = block.getHash();
+        // let's suppose the block gets accepted
+        BlockHeader header = new BlockHeader(block.getIndex(), block.getHash());
+
+        return header;
+    }
 
     private BlockHeaders onGetHeaders(JsonObject requestJson) {
 
