@@ -66,6 +66,8 @@ public class Blockchain {
     public Optional<Block> getBlock(BlockHeader blockHeader) {
         Block block = blockIndex.get(blockHeader.getHash());
         if (block == null || block.getIndex() != blockHeader.getHeight()) {
+            LOGGER.trace("A block with hash {} at height {} was requested, not found", blockHeader.getHeight(),
+                    blockHeader.getHeight());
             return Optional.empty();
         }
         return Optional.of(block);
