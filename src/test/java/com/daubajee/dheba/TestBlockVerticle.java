@@ -17,7 +17,9 @@ import com.daubajee.dheba.block.Blockchain;
 import com.daubajee.dheba.block.msg.BlockHeader;
 import com.daubajee.dheba.block.msg.BlockHeaders;
 import com.daubajee.dheba.block.msg.BlockMessage;
+import com.daubajee.dheba.block.msg.GetBlock;
 import com.daubajee.dheba.block.msg.GetHeaders;
+import com.daubajee.dheba.block.msg.OneBlock;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.EventBus;
@@ -44,7 +46,7 @@ public class TestBlockVerticle {
 
     @Test
     public void testGetHeaders(Vertx vertx, VertxTestContext testContext) throws Throwable {
-        LOGGER.info("TestBlockVerticle.mineGenesisBlock()");
+        LOGGER.info("TestBlockVerticle.testGetHeaders()");
         Checkpoint checkpoint = testContext.checkpoint(2);
 
         BlockVerticle blockVerticle = new BlockVerticle();
@@ -81,6 +83,44 @@ public class TestBlockVerticle {
             });
 
         testContext.awaitCompletion(1, TimeUnit.MINUTES);
+    }
+
+    @Test
+    public void testGetBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
+        LOGGER.info("TestBlockVerticle.testGetBlock()");
+        Checkpoint checkpoint = testContext.checkpoint(2);
+
+        BlockVerticle blockVerticle = new BlockVerticle();
+
+        EventBus eventBus = vertx.eventBus();
+
+        vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
+            checkpoint.flag();
+        }));
+        
+        GetBlock getBlock = new GetBlock(genesisHeader);
+        
+        BlockMessage blockMessage = new BlockMessage(BlockMessage.GET_BLOCK, getBlock.toJson());
+        
+        ObservableFuture<Message<JsonObject>> blockchainReplyStream = RxHelper.observableFuture();
+
+        eventBus.send(Topic.BLOCK, blockMessage.toJson(), blockchainReplyStream.toHandler());
+
+        blockchainReplyStream
+            .map(msg -> msg.body())
+            .map(json -> BlockMessage.from(json))
+            .filter(blockMsg -> blockMsg.getType().equals(BlockMessage.BLOCK))
+            .take(1)
+            .subscribe(blockMsg -> {
+                OneBlock oneBlock = OneBlock.from(blockMsg.getContent());
+                Block bcGenesisBlock = oneBlock.getBlock();
+                
+                assertThat(bcGenesisBlock.getHash(), equalTo(genesisHash));
+                assertThat(bcGenesisBlock.getIndex(), equalTo(geneisHeight));
+                
+                checkpoint.flag();
+            });
+        
     }
 
 
