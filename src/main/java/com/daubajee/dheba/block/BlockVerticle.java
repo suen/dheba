@@ -112,10 +112,18 @@ public class BlockVerticle extends AbstractVerticle {
             LOGGER.error("GetBlock request invalid, content : {}", requestJson);
             return Optional.empty();
         }
+        BlockHeader reqHeader = getBlockReq.getHeader();
 
-        Block gensisBlock = Blockchain.genesisBlock();
-        OneBlock blockReply = new OneBlock(gensisBlock);
-        return Optional.of(blockReply);
+        BlockHeader lastHeader = blockchain.getLastHeader();
+
+        if (reqHeader.getHeight() > lastHeader.getHeight()) {
+            LOGGER.info("A block at height {} was requested, current height of chain is {}", reqHeader.getHash(),
+                    lastHeader.getHeight());
+            return Optional.empty();
+        }
+
+        return blockchain.getBlock(reqHeader)
+            .map(block -> new OneBlock(block));
     }
 
 }
