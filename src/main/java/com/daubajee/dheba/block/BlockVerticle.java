@@ -1,7 +1,7 @@
 package com.daubajee.dheba.block;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -98,10 +98,17 @@ public class BlockVerticle extends AbstractVerticle {
             return new BlockHeaders(Collections.emptyList());
         }
 
-        BlockHeader after = getHeadersReq.getAfter();
+        BlockHeader afterHeader = getHeadersReq.getAfter();
 
-        BlockHeaders blockHeaders = new BlockHeaders(Arrays.asList(after));
+        int limit = getHeadersReq.getLimit();
 
+        List<BlockHeader> headers = blockchain.getHeaders(afterHeader, limit);
+        if (headers.isEmpty()) {
+            LOGGER.trace("Headers were requested after hash {}:{} limit {}, none returned", afterHeader.getHash(),
+                    afterHeader.getHeight(), limit);
+        }
+
+        BlockHeaders blockHeaders = new BlockHeaders(headers);
         return blockHeaders;
     }
 
