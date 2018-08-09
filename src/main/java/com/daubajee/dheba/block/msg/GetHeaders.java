@@ -27,7 +27,7 @@ public class GetHeaders {
 
     public JsonObject toJson() {
         return new JsonObject()
-                    .put("after", after)
+                    .put("after", after.toJson())
                     .put("limit", limit);
     }
 

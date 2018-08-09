@@ -23,7 +23,7 @@ public class BlockHeader {
     }
 
     public boolean isValid() {
-        return height != -1 && !hash.isEmpty();
+        return height >= 0 && !hash.isEmpty();
     }
 
     public JsonObject toJson() {
