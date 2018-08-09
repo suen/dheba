@@ -31,12 +31,12 @@ public class Blockchain {
     private List<Block> chain = new ArrayList<Block>();
 
     public Blockchain() {
-        add(gensisBlock());
+        add(genesisBlock());
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Blockchain.class);
 
-    public static Block gensisBlock() {
+    public static Block genesisBlock() {
         String genesisMsg = "Here comes the sun";
         String hash = calculateHash(0, null, 1515846670488L, genesisMsg, 5328471, 6);
         return new Block(0, hash, null, 1515846670488L, 5328471, 6, genesisMsg);
@@ -140,7 +140,7 @@ public class Blockchain {
         Block chainGenesisBlock = blockChain.get(0);
 
         boolean sameGensis = chainGenesisBlock.toJson()
-                .equals(gensisBlock().toJson());
+                .equals(genesisBlock().toJson());
         if (!sameGensis) {
             return false;
         }

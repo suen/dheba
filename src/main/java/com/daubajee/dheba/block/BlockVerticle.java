@@ -113,7 +113,7 @@ public class BlockVerticle extends AbstractVerticle {
             return Optional.empty();
         }
 
-        Block gensisBlock = Blockchain.gensisBlock();
+        Block gensisBlock = Blockchain.genesisBlock();
         OneBlock blockReply = new OneBlock(gensisBlock);
         return Optional.of(blockReply);
     }
