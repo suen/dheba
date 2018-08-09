@@ -87,6 +87,11 @@ public class Blockchain {
         return chain;
     }
 
+    public BlockHeader getLastHeader() {
+        Block block = chain.get(chain.size() - 1);
+        return new BlockHeader(block.getIndex(), block.getHash());
+    }
+
     public static String calculateHash(int index, String previousHash,
             long timestamp, String data, long difficulty, long nonce) {
         StringBuffer sb = new StringBuffer();
