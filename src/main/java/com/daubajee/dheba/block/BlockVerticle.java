@@ -2,15 +2,11 @@ package com.daubajee.dheba.block;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.daubajee.dheba.MsgUtils;
 import com.daubajee.dheba.Topic;
 import com.daubajee.dheba.block.msg.BlockHeader;
 import com.daubajee.dheba.block.msg.BlockHeaders;
@@ -22,18 +18,17 @@ import com.daubajee.dheba.block.msg.OneBlock;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 public class BlockVerticle extends AbstractVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BlockVerticle.class);
 
-    private Blockchain blocks;
+    private Blockchain blockchain;
 
     @Override
     public void start() throws Exception {
-        blocks = new Blockchain();
+        blockchain = new Blockchain();
 
         EventBus eventBus = vertx.eventBus();
 
@@ -121,31 +116,6 @@ public class BlockVerticle extends AbstractVerticle {
         Block gensisBlock = Blockchain.gensisBlock();
         OneBlock blockReply = new OneBlock(gensisBlock);
         return Optional.of(blockReply);
-    }
-
-    private void handleMineNewBlock(String data, Consumer<Object> object) {
-        List<Block> blockchain = blocks.getChain();
-        Block latestBlock = blockchain.get(blockchain.size() - 1);
-        long difficulty = Blockchain.getDifficulty(blockchain);
-        long currentTimestamp = System.currentTimeMillis();
-        Block newBlock = Blockchain.findNewBlock(latestBlock.getIndex() + 1, latestBlock.getHash(), currentTimestamp, data,
-                difficulty);
-        blockchain.add(newBlock);
-
-        JsonObject reply = MsgUtils.createReply("OK");
-        object.accept(reply);
-    }
-
-    private void handleGetAllBlocks(Consumer<Object> consumer) {
-        List<Block> blockchain = blocks.getChain();
-        List<JsonObject> jsonBlocks = blockchain.stream()
-            .map(block -> block.toJson())
-            .collect(Collectors.toList());
-        JsonArray jsonArray = new JsonArray(jsonBlocks);
-        String jsonArrayStr = jsonArray.toString();
-
-        JsonObject reply = MsgUtils.createReply("OK", jsonArrayStr);
-        consumer.accept(reply);
     }
 
 }
