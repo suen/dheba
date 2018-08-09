@@ -31,7 +31,9 @@ public class Blockchain {
     private List<Block> chain = new ArrayList<Block>();
 
     public Blockchain() {
-        add(genesisBlock());
+        Block genesisBlock = genesisBlock();
+        blockIndex.put(genesisBlock.getHash(), genesisBlock);
+        chain.add(genesisBlock);
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Blockchain.class);
