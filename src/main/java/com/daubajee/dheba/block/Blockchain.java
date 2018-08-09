@@ -39,9 +39,9 @@ public class Blockchain {
     private static final Logger LOGGER = LoggerFactory.getLogger(Blockchain.class);
 
     public static Block genesisBlock() {
-        String genesisMsg = "Here comes the sun";
-        String hash = calculateHash(0, null, 1515846670488L, genesisMsg, 5328471, 6);
-        return new Block(0, hash, null, 1515846670488L, 5328471, 6, genesisMsg);
+        String genesisMsg = "Here comes the sun (doo doo doo doo)";
+        String hash = BlockUtils.sha256(0, "", 1515846960488L, genesisMsg, 5, 789735);
+        return new Block(0, hash, null, 1515846960488L, 789735, 5, genesisMsg);
     }
 
     public List<BlockHeader> getHeaders(BlockHeader afterHeader, int limit) {
