@@ -34,6 +34,14 @@ public class TestBlockVerticle {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TestBlockVerticle.class);
 
+    Block genesisBlock = Blockchain.genesisBlock();
+
+    String genesisHash = genesisBlock.getHash();
+
+    int geneisHeight = genesisBlock.getIndex();
+
+    BlockHeader genesisHeader = new BlockHeader(geneisHeight, genesisHash);
+
     @Test
     public void testGetHeaders(Vertx vertx, VertxTestContext testContext) throws Throwable {
         LOGGER.info("TestBlockVerticle.mineGenesisBlock()");
@@ -46,14 +54,6 @@ public class TestBlockVerticle {
         vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
             checkpoint.flag();
         }));
-
-        Block genesisBlock = Blockchain.genesisBlock();
-
-        String genesisHash = genesisBlock.getHash();
-
-        int geneisHeight = genesisBlock.getIndex();
-
-        BlockHeader genesisHeader = new BlockHeader(geneisHeight, genesisHash);
 
         GetHeaders getHeaders = new GetHeaders(genesisHeader, 10);
 
@@ -82,5 +82,6 @@ public class TestBlockVerticle {
 
         testContext.awaitCompletion(1, TimeUnit.MINUTES);
     }
+
 
 }
