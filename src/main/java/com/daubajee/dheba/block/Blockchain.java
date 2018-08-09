@@ -53,7 +53,7 @@ public class Blockchain {
 
         String startingHash = block.getHash();
         String nextBlockHash = startingHash;
-        while (nextBlockHash != null) {
+        while (nextBlockHash != null && replyHeaders.size() <= limit + 1) {
             Block nextBlock = blockIndex.get(nextBlockHash);
             BlockHeader blockHeader = new BlockHeader(nextBlock.getIndex(), nextBlockHash);
             replyHeaders.add(blockHeader);
