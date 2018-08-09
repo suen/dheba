@@ -20,7 +20,7 @@ public class GetBlock {
 
     public JsonObject toJson() {
         return new JsonObject()
-                    .put("header", header);
+                    .put("header", header.toJson());
     }
 
     public static GetBlock from(JsonObject json) {
