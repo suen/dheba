@@ -147,7 +147,7 @@ public class Blockchain {
         for (int i = 1; i < hashes.size(); i++) {
             String hash = hashes.get(i);
             long timestamp = blockHashIndex.get(hash).getTimestamp();
-            if (timestamp > maxTimestamp) {
+            if (timestamp < maxTimestamp) {
                 maxTimestamp = timestamp;
                 preferredHash = hash;
             }
