@@ -28,11 +28,14 @@ public class Blockchain {
 
     private Map<String, String> previousBlockHashIndex = new HashMap<>();
 
+    private Map<Integer, Block> blockHeightIndex = new HashMap<>();
+
     private List<Block> chain = new ArrayList<Block>();
 
     public Blockchain() {
         Block genesisBlock = genesisBlock();
         blockHashIndex.put(genesisBlock.getHash(), genesisBlock);
+        blockHeightIndex.put(genesisBlock.getIndex(), genesisBlock);
         chain.add(genesisBlock);
     }
 
@@ -93,9 +96,9 @@ public class Blockchain {
 
         BlockHeader lastHeader = getLastHeader();
 
-        Block previousBlock = blockHashIndex.get(index - 1);
+        Block previousBlock = blockHeightIndex.get(index - 1);
 
-        int previousIndex = previousBlock.getIndex();
+        int previousIndex = Optional.ofNullable(previousBlock.getIndex()).orElse(-1);
 
         if (!previousHash.equals(previousBlock.getHash())) {
             LOGGER.info("Previous hash of incoming block unknown, block {}", block.toJson());
