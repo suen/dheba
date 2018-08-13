@@ -1,5 +1,6 @@
 package com.daubajee.dheba.block;
 
+import java.util.Optional;
 import java.util.function.Function;
 
 import com.google.common.collect.Range;
@@ -45,19 +46,45 @@ public final class BlockUtils {
 
     }
 
-    public static long getDifficulty(int blockchainLength, Function<Integer, Block> blockAccessor) {
-        Block latestBlock = blockAccessor.apply(blockchainLength - 1);
+    public static long getDifficultyForNextBlock(Block latestBlock, Function<String, Block> blockLookup) {
+        int blockchainHeight = latestBlock.getIndex() + 1;
 
-        if (blockchainLength % BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL == 0 && blockchainLength > 0) {
-            int lastAdjustedIndex = blockchainLength - blockchainLength % BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL;
-            Block previousAdjustedBlock = blockAccessor.apply(lastAdjustedIndex);
-            return getAdjustedDifficulty(blockchainLength, latestBlock, previousAdjustedBlock);
+        if (blockchainHeight % BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL == 0 && blockchainHeight > 0) {
+            int lastAdjustedHeight = blockchainHeight - BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL;
+
+            if (blockchainHeight - lastAdjustedHeight != BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL) {
+                throw new IllegalStateException("Blockchain inconsistent");
+            }
+
+            Optional<Block> blockAtIndex = getBlockAtIndex(latestBlock, lastAdjustedHeight, blockLookup);
+
+            if (!blockAtIndex.isPresent()) {
+                throw new IllegalStateException("Blockchain inconsistent");
+            }
+
+            Block previousAdjustedBlock = blockAtIndex.get();
+            return getAdjustedDifficulty(latestBlock, previousAdjustedBlock);
         }
 
         return latestBlock.getDifficulty();
     }
 
-    public static long getAdjustedDifficulty(int blockchainLength, Block latestBlock, Block previousAdjustedBlock) {
+    private static Optional<Block> getBlockAtIndex(Block block, int index, Function<String, Block> blockLookup) {
+        if (block == null || block.getIndex() - BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL > index
+                || block.getIndex() == 0) {
+            return Optional.empty();
+        }
+
+        if (block.getIndex() == index) {
+            return Optional.of(block);
+        }
+
+        String previousHash = block.getPreviousHash();
+        Block prevBlock = blockLookup.apply(previousHash);
+        return getBlockAtIndex(prevBlock, index, blockLookup);
+    }
+
+    public static long getAdjustedDifficulty(Block latestBlock, Block previousAdjustedBlock) {
 
         int estimatedTimeInMin = BlockConstant.BLOCK_GENERATION_INTERVAL * BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL;
 

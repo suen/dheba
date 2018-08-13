@@ -1,6 +1,7 @@
 package com.daubajee.dheba.block;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -28,14 +29,14 @@ public class Blockchain {
 
     private Map<String, String> previousBlockHashIndex = new HashMap<>();
 
-    private Map<Integer, Block> blockHeightIndex = new HashMap<>();
+    private Map<Integer, List<String>> blockHeightIndex = new HashMap<>();
 
     private List<Block> chain = new ArrayList<Block>();
 
     public Blockchain() {
         Block genesisBlock = genesisBlock();
         blockHashIndex.put(genesisBlock.getHash(), genesisBlock);
-        blockHeightIndex.put(genesisBlock.getIndex(), genesisBlock);
+        blockHeightIndex.put(genesisBlock.getIndex(), Arrays.asList(genesisBlock.getHash()));
         chain.add(genesisBlock);
     }
 
@@ -96,30 +97,36 @@ public class Blockchain {
 
         BlockHeader lastHeader = getLastHeader();
 
-        Block previousBlock = blockHeightIndex.get(blockIndex - 1);
+        String previousBlockHash = previousBlockHashIndex.get(blockHash);
 
-        int previousIndex = Optional.ofNullable(previousBlock)
-                .map(prevBlock -> prevBlock.getIndex())
-                .orElse(-1);
-
-        if (previousIndex < lastHeader.getHeight() - 5) {
-            LOGGER.info("Incoming block is at index {}, current index {}", blockIndex, lastHeader.getHeight());
-            return Optional.empty();
-        }
-
-        if (!previousHash.equals(previousBlock.getHash())) {
+        Optional<Block> prevBlockResult = Optional.ofNullable(previousBlockHash).map(hash -> blockHashIndex.get(hash));
+        
+        if (!prevBlockResult.isPresent()) {
             LOGGER.info("Previous hash of incoming block unknown, block {}", block.toJson());
             return Optional.empty();
         }
 
-        if (block.getTimestamp() <= previousBlock.getTimestamp()) {
-            LOGGER.info("Incoming block is at timestamp {} which is superior to the previous block's timestamp {}",
+        if (blockIndex > lastHeader.getHeight() - 5) {
+            LOGGER.info("Incoming block is at index {}, current index {}", blockIndex, lastHeader.getHeight());
+            return Optional.empty();
+        }
+
+        Block previousBlock = prevBlockResult.get();
+
+        if (previousBlock.getIndex() != blockIndex + 1) {
+            LOGGER.info("Incoming block is at height {} which is more than +1 than the previous block's height {}",
+                    block.getIndex(), previousBlock.getIndex());
+            return Optional.empty();
+        }
+
+        if (block.getTimestamp() > previousBlock.getTimestamp()) {
+            LOGGER.info("Incoming block is at timestamp {} which is inferior to the previous block's timestamp {}",
                     block.getTimestamp(), previousBlock.getTimestamp());
             return Optional.empty();
         }
 
         // check difficulty for index
-        long difficulty = BlockUtils.getDifficulty(blockIndex, height -> blockHeightIndex.get(height));
+        long difficulty = BlockUtils.getDifficultyForNextBlock(previousBlock, hash -> blockHashIndex.get(hash));
         if (block.getDifficulty() != difficulty) {
             LOGGER.info("Incoming block does not match difficulty level, difficulty expected {}, block {}", difficulty,
                     block.toJson());
@@ -134,7 +141,7 @@ public class Blockchain {
 
         previousBlockHashIndex.put(previousHash, blockHash);
         blockHashIndex.put(blockHash, block);
-        blockHeightIndex.put(blockIndex, block);
+        blockHeightIndex.computeIfAbsent(blockIndex, index -> new ArrayList<>()).add(blockHash);
         return Optional.of(getLastHeader());
     }
 
@@ -150,6 +157,7 @@ public class Blockchain {
     }
 
     public BlockHeader getLastHeader() {
+        int maxHeight = blockHeightIndex.keySet().stream().mapToInt(index -> index).max().orElse(0);
         Block block = chain.get(chain.size() - 1);
         return new BlockHeader(block.getIndex(), block.getHash());
     }
