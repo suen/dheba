@@ -89,7 +89,7 @@ public class Blockchain {
             return Optional.empty();
         }
 
-        if (blockIndex > lastHeader.getHeight() - 5) {
+        if (blockIndex > lastHeader.getHeight() - BlockConstant.MAX_FORK_INTERVAL) {
             LOGGER.info("Incoming block is at index {}, current index {}", blockIndex, lastHeader.getHeight());
             return Optional.empty();
         }

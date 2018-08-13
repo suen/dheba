@@ -6,4 +6,6 @@ public final class BlockConstant {
 
     public static final int DIFFICULTY_ADJUSTMENT_INTERVAL = 10;
 
+    public static final int MAX_FORK_INTERVAL = 5;
+
 }
