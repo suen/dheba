@@ -90,32 +90,51 @@ public class Blockchain {
             return Optional.empty();
         }
 
-        int index = block.getIndex();
+        int blockIndex = block.getIndex();
         String blockHash = block.getHash();
         String previousHash = block.getPreviousHash();
 
         BlockHeader lastHeader = getLastHeader();
 
-        Block previousBlock = blockHeightIndex.get(index - 1);
+        Block previousBlock = blockHeightIndex.get(blockIndex - 1);
 
-        int previousIndex = Optional.ofNullable(previousBlock.getIndex()).orElse(-1);
+        int previousIndex = Optional.ofNullable(previousBlock)
+                .map(prevBlock -> prevBlock.getIndex())
+                .orElse(-1);
+
+        if (previousIndex < lastHeader.getHeight() - 5) {
+            LOGGER.info("Incoming block is at index {}, current index {}", blockIndex, lastHeader.getHeight());
+            return Optional.empty();
+        }
 
         if (!previousHash.equals(previousBlock.getHash())) {
             LOGGER.info("Previous hash of incoming block unknown, block {}", block.toJson());
             return Optional.empty();
         }
 
-        if (previousIndex < lastHeader.getHeight() - 5) {
-            LOGGER.info("Incoming block is at index {}, current index {}", index, lastHeader.getHeight());
+        if (block.getTimestamp() <= previousBlock.getTimestamp()) {
+            LOGGER.info("Incoming block is at timestamp {} which is superior to the previous block's timestamp {}",
+                    block.getTimestamp(), previousBlock.getTimestamp());
             return Optional.empty();
         }
 
         // check difficulty for index
-
-        if (previousHash != null) {
-            previousBlockHashIndex.put(previousHash, blockHash);
+        long difficulty = BlockUtils.getDifficulty(blockIndex, height -> blockHeightIndex.get(height));
+        if (block.getDifficulty() != difficulty) {
+            LOGGER.info("Incoming block does not match difficulty level, difficulty expected {}, block {}", difficulty,
+                    block.toJson());
+            return Optional.empty();
         }
+
+        boolean hashMatchesDifficulty = BlockUtils.hashMatchesDifficulty(blockHash, difficulty);
+        if (!hashMatchesDifficulty) {
+            LOGGER.info("Incoming block's hash does not match difficulty level, block {}", block.toJson());
+            return Optional.empty();
+        }
+
+        previousBlockHashIndex.put(previousHash, blockHash);
         blockHashIndex.put(blockHash, block);
+        blockHeightIndex.put(blockIndex, block);
         return Optional.of(getLastHeader());
     }
 
