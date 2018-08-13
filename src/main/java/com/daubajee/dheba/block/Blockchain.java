@@ -24,15 +24,15 @@ public class Blockchain {
 
     private static final int TIMESTAMP_MARGIN = 60000;
 
-    private Map<String, Block> blockIndex = new HashMap<>();
+    private Map<String, Block> blockHashIndex = new HashMap<>();
 
-    private Map<String, String> nextBlockHashIndex = new HashMap<>();
+    private Map<String, String> previousBlockHashIndex = new HashMap<>();
 
     private List<Block> chain = new ArrayList<Block>();
 
     public Blockchain() {
         Block genesisBlock = genesisBlock();
-        blockIndex.put(genesisBlock.getHash(), genesisBlock);
+        blockHashIndex.put(genesisBlock.getHash(), genesisBlock);
         chain.add(genesisBlock);
     }
 
@@ -46,7 +46,7 @@ public class Blockchain {
 
     public List<BlockHeader> getHeaders(BlockHeader afterHeader, int limit) {
 
-        Block block = blockIndex.get(afterHeader.getHash());
+        Block block = blockHashIndex.get(afterHeader.getHash());
         if (block == null || block.getIndex() != afterHeader.getHeight()) {
             return Collections.emptyList();
         }
@@ -56,17 +56,17 @@ public class Blockchain {
         String startingHash = block.getHash();
         String nextBlockHash = startingHash;
         while (nextBlockHash != null && replyHeaders.size() <= limit + 1) {
-            Block nextBlock = blockIndex.get(nextBlockHash);
+            Block nextBlock = blockHashIndex.get(nextBlockHash);
             BlockHeader blockHeader = new BlockHeader(nextBlock.getIndex(), nextBlockHash);
             replyHeaders.add(blockHeader);
-            nextBlockHash = nextBlockHashIndex.get(startingHash);
+            nextBlockHash = previousBlockHashIndex.get(startingHash);
         }
 
         return replyHeaders;
     }
 
     public Optional<Block> getBlock(BlockHeader blockHeader) {
-        Block block = blockIndex.get(blockHeader.getHash());
+        Block block = blockHashIndex.get(blockHeader.getHash());
         if (block == null || block.getIndex() != blockHeader.getHeight()) {
             LOGGER.trace("A block with hash {} at height {} was requested, not found", blockHeader.getHeight(),
                     blockHeader.getHeight());
@@ -93,7 +93,7 @@ public class Blockchain {
 
         BlockHeader lastHeader = getLastHeader();
 
-        Block previousBlock = blockIndex.get(index - 1);
+        Block previousBlock = blockHashIndex.get(index - 1);
 
         int previousIndex = previousBlock.getIndex();
 
@@ -110,9 +110,9 @@ public class Blockchain {
         // check difficulty for index
 
         if (previousHash != null) {
-            nextBlockHashIndex.put(previousHash, blockHash);
+            previousBlockHashIndex.put(previousHash, blockHash);
         }
-        blockIndex.put(blockHash, block);
+        blockHashIndex.put(blockHash, block);
         return Optional.of(getLastHeader());
     }
 
