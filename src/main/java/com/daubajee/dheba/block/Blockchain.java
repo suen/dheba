@@ -17,8 +17,6 @@ public class Blockchain {
 
     private Map<String, Block> blockHashIndex = new HashMap<>();
 
-    private Map<String, String> previousBlockHashIndex = new HashMap<>();
-
     private Map<Integer, List<String>> blockHeightIndex = new HashMap<>();
 
     public Blockchain() {
@@ -44,13 +42,12 @@ public class Blockchain {
 
         List<BlockHeader> replyHeaders = new ArrayList<>();
 
-        String startingHash = block.getHash();
-        String nextBlockHash = startingHash;
-        while (nextBlockHash != null && replyHeaders.size() <= limit + 1) {
+        String nextBlockHash = block.getHash();
+        while (nextBlockHash != null || replyHeaders.size() <= limit + 1) {
             Block nextBlock = blockHashIndex.get(nextBlockHash);
             BlockHeader blockHeader = new BlockHeader(nextBlock.getIndex(), nextBlockHash);
             replyHeaders.add(blockHeader);
-            nextBlockHash = previousBlockHashIndex.get(startingHash);
+            nextBlockHash = nextBlock.getPreviousHash();
         }
 
         return replyHeaders;
@@ -84,9 +81,8 @@ public class Blockchain {
 
         BlockHeader lastHeader = getLastHeader();
 
-        String previousBlockHash = previousBlockHashIndex.get(blockHash);
 
-        Optional<Block> prevBlockResult = Optional.ofNullable(previousBlockHash).map(hash -> blockHashIndex.get(hash));
+        Optional<Block> prevBlockResult = Optional.ofNullable(blockHashIndex.get(previousHash));
         
         if (!prevBlockResult.isPresent()) {
             LOGGER.info("Previous hash of incoming block unknown, block {}", block.toJson());
@@ -126,7 +122,6 @@ public class Blockchain {
             return Optional.empty();
         }
 
-        previousBlockHashIndex.put(previousHash, blockHash);
         blockHashIndex.put(blockHash, block);
         blockHeightIndex.computeIfAbsent(blockIndex, index -> new ArrayList<>()).add(blockHash);
         return Optional.of(getLastHeader());
