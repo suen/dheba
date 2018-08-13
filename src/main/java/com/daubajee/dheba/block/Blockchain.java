@@ -75,16 +75,52 @@ public class Blockchain {
         return Optional.of(block);
     }
 
-    private void add(Block block) {
+    public Optional<BlockHeader> append(Block block) {
         if (!block.isValid()) {
-            return;
+            LOGGER.info("An invalid block was received, block : {}", block.toJson());
+            return Optional.empty();
         }
+
+        boolean hashIsCorrect = checkHash(block);
+        if (!hashIsCorrect) {
+            LOGGER.info("Hash of incoming block invalid, block : {}", block.toJson());
+            return Optional.empty();
+        }
+
+        int index = block.getIndex();
         String blockHash = block.getHash();
         String previousHash = block.getPreviousHash();
+
+        BlockHeader lastHeader = getLastHeader();
+
+        Block previousBlock = blockIndex.get(index - 1);
+
+        int previousIndex = previousBlock.getIndex();
+
+        if (!previousHash.equals(previousBlock.getHash())) {
+            LOGGER.info("Previous hash of incoming block unknown, block {}", block.toJson());
+            return Optional.empty();
+        }
+
+        if (previousIndex < lastHeader.getHeight() - 5) {
+            LOGGER.info("Incoming block is at index {}, current index {}", index, lastHeader.getHeight());
+            return Optional.empty();
+        }
+
+        // check difficulty for index
+
         if (previousHash != null) {
             nextBlockHashIndex.put(previousHash, blockHash);
         }
         blockIndex.put(blockHash, block);
+        return Optional.of(getLastHeader());
+    }
+
+    private static boolean checkHash(Block block) {
+        String blocksha256 = BlockUtils.sha256(block.getIndex(), block.getPreviousHash(), block.getTimestamp(),
+                block.getData(), block.getDifficulty(), block.getNonce());
+        String hash = block.getHash();
+        return blocksha256.equals(hash);
     }
 
     public List<Block> getChain() {
