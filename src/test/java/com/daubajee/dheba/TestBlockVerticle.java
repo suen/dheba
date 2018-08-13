@@ -142,8 +142,6 @@ public class TestBlockVerticle {
 
         ObservableFuture<Message<JsonObject>> blockchainReplyStream = RxHelper.observableFuture();
 
-        eventBus.send(Topic.BLOCK, getHeaderReq.toJson(), blockchainReplyStream.toHandler());
-
         blockchainReplyStream
             .map(msg -> msg.body())
             .map(json -> BlockMessage.from(json))
@@ -160,6 +158,8 @@ public class TestBlockVerticle {
                 assertThat(firstHeader.getHeight(), equalTo(geneisHeight));
                 checkpoint.flag();
             });
+
+        eventBus.send(Topic.BLOCK, getHeaderReq.toJson(), blockchainReplyStream.toHandler());
 
         testContext.awaitCompletion(1, TimeUnit.MINUTES);
     }
@@ -183,8 +183,6 @@ public class TestBlockVerticle {
         
         ObservableFuture<Message<JsonObject>> blockchainReplyStream = RxHelper.observableFuture();
 
-        eventBus.send(Topic.BLOCK, blockMessage.toJson(), blockchainReplyStream.toHandler());
-
         blockchainReplyStream
             .map(msg -> msg.body())
             .map(json -> BlockMessage.from(json))
@@ -200,6 +198,8 @@ public class TestBlockVerticle {
                 checkpoint.flag();
             });
         
+        eventBus.send(Topic.BLOCK, blockMessage.toJson(), blockchainReplyStream.toHandler());
+
     }
 
 
