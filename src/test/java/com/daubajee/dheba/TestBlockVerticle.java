@@ -132,10 +132,6 @@ public class TestBlockVerticle {
 
         EventBus eventBus = vertx.eventBus();
 
-        vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
-            checkpoint.flag();
-        }));
-
         GetHeaders getHeaders = new GetHeaders(genesisHeader, 10);
 
         BlockMessage getHeaderReq = new BlockMessage(BlockMessage.GET_HEADERS, getHeaders.toJson());
@@ -159,7 +155,10 @@ public class TestBlockVerticle {
                 checkpoint.flag();
             });
 
-        eventBus.send(Topic.BLOCK, getHeaderReq.toJson(), blockchainReplyStream.toHandler());
+        vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
+            eventBus.send(Topic.BLOCK, getHeaderReq.toJson(), blockchainReplyStream.toHandler());
+            checkpoint.flag();
+        }));
 
         testContext.awaitCompletion(1, TimeUnit.MINUTES);
     }
