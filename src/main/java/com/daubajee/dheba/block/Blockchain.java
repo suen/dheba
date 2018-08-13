@@ -118,7 +118,7 @@ public class Blockchain {
                     block.getIndex(), previousBlock.getIndex());
             return Optional.empty();
         }
-
+        
         if (block.getTimestamp() > previousBlock.getTimestamp()) {
             LOGGER.info("Incoming block is at timestamp {} which is inferior to the previous block's timestamp {}",
                     block.getTimestamp(), previousBlock.getTimestamp());
@@ -158,8 +158,23 @@ public class Blockchain {
 
     public BlockHeader getLastHeader() {
         int maxHeight = blockHeightIndex.keySet().stream().mapToInt(index -> index).max().orElse(0);
-        Block block = chain.get(chain.size() - 1);
-        return new BlockHeader(block.getIndex(), block.getHash());
+        List<String> hashes = blockHeightIndex.get(maxHeight);
+        if (hashes.size() == 1) {
+            return new BlockHeader(maxHeight, hashes.get(0));
+        }
+        // if many block at the highest point are found, we pick the one with
+        // oldest timestamp
+        String preferredHash = hashes.get(0);
+        long maxTimestamp = blockHashIndex.get(preferredHash).getTimestamp();
+        for (int i = 1; i < hashes.size(); i++) {
+            String hash = hashes.get(i);
+            long timestamp = blockHashIndex.get(hash).getTimestamp();
+            if (timestamp > maxTimestamp) {
+                maxTimestamp = timestamp;
+                preferredHash = hash;
+            }
+        }
+        return new BlockHeader(maxHeight, preferredHash);
     }
 
     public static String calculateHash(int index, String previousHash,
