@@ -1,5 +1,8 @@
 package com.daubajee.dheba.block;
 
+import java.util.function.Function;
+
+import com.google.common.collect.Range;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
 
@@ -40,5 +43,41 @@ public final class BlockUtils {
         }
         return true;
 
+    }
+
+    public static long getDifficulty(int blockchainLength, Function<Integer, Block> blockAccessor) {
+        Block latestBlock = blockAccessor.apply(blockchainLength - 1);
+
+        if (blockchainLength % BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL == 0 && blockchainLength > 0) {
+            int lastAdjustedIndex = blockchainLength - blockchainLength % BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL;
+            Block previousAdjustedBlock = blockAccessor.apply(lastAdjustedIndex);
+            return getAdjustedDifficulty(blockchainLength, latestBlock, previousAdjustedBlock);
+        }
+
+        return latestBlock.getDifficulty();
+    }
+
+    public static long getAdjustedDifficulty(int blockchainLength, Block latestBlock, Block previousAdjustedBlock) {
+
+        int estimatedTimeInMin = BlockConstant.BLOCK_GENERATION_INTERVAL * BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL;
+
+        long timeInMsBetweenDifficultAdjust = latestBlock.getTimestamp() - previousAdjustedBlock.getTimestamp();
+        long timeInMinBetweenDifficultAdjust = timeInMsBetweenDifficultAdjust / (6000);
+
+        long deltaInMin = timeInMinBetweenDifficultAdjust - estimatedTimeInMin;
+
+        long currentDifficulty = latestBlock.getDifficulty();
+
+        Range<Long> allowed = Range.closed(-1L, 1L);
+
+        if (allowed.contains(deltaInMin)) {
+            return currentDifficulty;
+        }
+
+        if (deltaInMin < 1) {
+            return currentDifficulty + 1;
+        } else {
+            return currentDifficulty - 1;
+        }
     }
 }
