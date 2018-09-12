@@ -124,6 +124,9 @@
 		                 <version>1.2.0</version>
 		             </dependency>
 		         </dependencies>
+		         <configuration>
+		         	<argLine>-agentlib:jdwp=transport=dt_socket,server=y,address=8000,suspend=n</argLine>
+		         </configuration>
 		     </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

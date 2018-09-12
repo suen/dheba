@@ -40,10 +40,6 @@ public class TestBlockMiner {
 
         EventBus eventBus = vertx.eventBus();
 
-        vertx.deployVerticle(blockMiner, testContext.succeeding(h -> {
-            checkpoint.flag();
-        }));
-
         Block rawGenesisBlock = new Block(0, "", "", 1531163330608L, 700075, 5, "Here comes the sun");
 
         ObservableHandler<Message<JsonObject>> blockMinerStream = RxHelper.observableHandler(true);
@@ -64,7 +60,10 @@ public class TestBlockMiner {
 
         BlockMinerMessage mineBlockMsg = new BlockMinerMessage(BlockMinerMessage.MINE_BLOCK, rawGenesisBlock.toJson());
 
-        eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg.toJson());
+        vertx.deployVerticle(blockMiner, testContext.succeeding(h -> {
+            eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg.toJson());
+            checkpoint.flag();
+        }));
 
         testContext.awaitCompletion(1, TimeUnit.MINUTES);
     }
