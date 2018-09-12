@@ -3,7 +3,7 @@
 
 Inspired by various tutorials on the web on blockchain, this project is a one-man quest to build a usuable toy cryptocurrency and have fun.
 
-##Objectives:
+## Objectives:
 * Build a blockchain.
 * Emulate Bitcoin protocol.
 * Have fun.
