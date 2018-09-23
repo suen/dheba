@@ -19,17 +19,14 @@ import com.daubajee.dheba.peer.msg.GetPeerList;
 import com.daubajee.dheba.peer.msg.HandShake;
 import com.daubajee.dheba.peer.msg.PeerList;
 
-import io.vertx.core.Vertx;
-import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.eventbus.Message;
+import io.reactivex.Observable;
 import io.vertx.core.json.JsonObject;
 import io.vertx.junit5.Checkpoint;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rx.java.ObservableHandler;
-import io.vertx.rx.java.RxHelper;
-import rx.Observable;
+import io.vertx.reactivex.core.Vertx;
+import io.vertx.reactivex.core.eventbus.EventBus;
+import io.vertx.reactivex.core.eventbus.Message;
 
 @ExtendWith(VertxExtension.class)
 public class TestPeerRegistryVerticle {
@@ -38,25 +35,20 @@ public class TestPeerRegistryVerticle {
             "192.168.1.5:42042");
 
     @Test
-    public void testRegistry(Vertx vertx, VertxTestContext testContext) throws Throwable {
-
+    public void testRegistry(io.vertx.core.Vertx coreVertx, VertxTestContext testContext) throws Throwable {
+        Vertx vertx = Vertx.newInstance(coreVertx);
         Checkpoint checkpoint = testContext.checkpoint(5);
-
-        PeerRegistryVerticle peerRegistryVerticle = new PeerRegistryVerticle();
 
         EventBus eventBus = vertx.eventBus();
 
-        ObservableHandler<Message<JsonObject>> remotePeerEventStream = RxHelper.observableHandler();
+        Observable<Message<JsonObject>> remotePeerEventStream = eventBus.<JsonObject>consumer(Topic.REMOTE_PEER_EVENTS)
+                .toObservable();
 
-        ObservableFuture<Message<JsonObject>> peerList1Stream = RxHelper.observableFuture();
-        ObservableFuture<Message<JsonObject>> peerList2Stream = RxHelper.observableFuture();
-        ObservableFuture<Message<JsonObject>> peerList3Stream = RxHelper.observableFuture();
-        
         remotePeerEventStream
         	.take(1)
             .map(msg -> msg.body())
             .filter(json -> json.getString(S.TYPE, "").equals(RemotePeerEvent.NEW_PEER))
-            .subscribe(json -> {
+            .flatMap(json -> {
                 RemotePeerEvent event = RemotePeerEvent.from(json);
                 assertThat("localhost expected", event.getRemoteHostAddress(), equalTo("127.0.0.1"));
                 assertThat("a different port was expected", event.getRemoteHostPort(), equalTo(42042));
@@ -66,14 +58,14 @@ public class TestPeerRegistryVerticle {
                 eventBus.publish(Topic.REMOTE_PEER_EVENTS, connectedEvent.toJson());
                 
                 PeerRegistryMessage registryGetListMsg = new PeerRegistryMessage(PeerRegistryMessage.GET_LIST, new JsonObject());
-                eventBus.send(Topic.PEER_REGISTRY, registryGetListMsg.toJson(), peerList1Stream.toHandler());
-            });
-
-        peerList1Stream
+//                eventBus.send(Topic.PEER_REGISTRY, registryGetListMsg.toJson(), peerList1Stream.toHandler());
+                
+                return eventBus.<JsonObject>rxSend(Topic.PEER_REGISTRY, registryGetListMsg.toJson()).toObservable();
+            })
             .take(1)
             .map(msg -> msg.body())
             .filter(json -> json.getString(S.TYPE, "").equals(PeerRegistryMessage.LIST))
-            .subscribe(json -> {
+            .flatMap(json -> {
                 PeerRegistryMessage msg = PeerRegistryMessage.from(json);
                 JsonObject content = msg.getContent();
                 List<String> peers = PeerList.from(content).getPeers();
@@ -88,14 +80,13 @@ public class TestPeerRegistryVerticle {
                 eventBus.publish(Topic.PEER_REGISTRY, registryListMsg.toJson());
                 
                 PeerRegistryMessage registryGetListMsg = new PeerRegistryMessage(PeerRegistryMessage.GET_LIST, new JsonObject());
-                eventBus.send(Topic.PEER_REGISTRY, registryGetListMsg.toJson(), peerList2Stream.toHandler());
-            });
-        
-        peerList2Stream
+                
+                return eventBus.<JsonObject>rxSend(Topic.PEER_REGISTRY, registryGetListMsg.toJson()).toObservable();
+            })
             .take(1)
             .map(msg -> msg.body())
             .filter(json -> json.getString(S.TYPE, "").equals(PeerRegistryMessage.LIST))
-            .subscribe(json -> {
+            .flatMap(json -> {
                 PeerRegistryMessage msg = PeerRegistryMessage.from(json);
                 JsonObject content = msg.getContent();
                 List<String> peers = PeerList.from(content).getPeers();
@@ -119,11 +110,10 @@ public class TestPeerRegistryVerticle {
         		eventBus.publish(Topic.REMOTE_PEER_EVENTS, handshakedEvent.toJson());
         		GetPeerList getListRequest = new GetPeerList(1, peersAdrPort);
                 PeerRegistryMessage registryGetListMsg = new PeerRegistryMessage(PeerRegistryMessage.GET_LIST, getListRequest.toJson());
-                eventBus.send(Topic.PEER_REGISTRY, registryGetListMsg.toJson(), peerList3Stream.toHandler());
-            });
-
-        peerList3Stream
-        	.take(1)
+                
+                return eventBus.<JsonObject>rxSend(Topic.PEER_REGISTRY, registryGetListMsg.toJson()).toObservable();
+            })
+            .take(1)
             .map(msg -> msg.body())
             .filter(json -> json.getString(S.TYPE, "").equals(PeerRegistryMessage.LIST))
             .subscribe(json -> {
@@ -136,10 +126,8 @@ public class TestPeerRegistryVerticle {
                 checkpoint.flag();
             });
         	
-        eventBus.consumer(Topic.REMOTE_PEER_EVENTS, remotePeerEventStream.toHandler());
-
         System.setProperty(Config.P_P2P_SEEDS, "127.0.0.1:42042");
-        vertx.deployVerticle(peerRegistryVerticle, testContext.succeeding(h -> {
+        vertx.deployVerticle(PeerRegistryVerticle.class.getName(), testContext.succeeding(h -> {
             checkpoint.flag();
         }));
 

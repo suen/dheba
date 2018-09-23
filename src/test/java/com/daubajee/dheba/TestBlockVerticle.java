@@ -28,17 +28,15 @@ import com.daubajee.dheba.block.msg.GetBlock;
 import com.daubajee.dheba.block.msg.GetHeaders;
 import com.daubajee.dheba.block.msg.OneBlock;
 
+import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
-import io.vertx.core.Vertx;
-import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.junit5.Checkpoint;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rx.java.ObservableHandler;
-import io.vertx.rx.java.RxHelper;
+import io.vertx.reactivex.core.Vertx;
+import io.vertx.reactivex.core.eventbus.EventBus;
+import io.vertx.reactivex.core.eventbus.Message;
 
 @ExtendWith(VertxExtension.class)
 public class TestBlockVerticle {
@@ -68,11 +66,9 @@ public class TestBlockVerticle {
     public void preMineBlocks(Vertx vertx, VertxTestContext testContext, Block lastBlock, int maxIndex) throws Exception {
         Checkpoint checkpoint = testContext.checkpoint(1 + (maxIndex - lastBlock.getIndex()));
 
-        BlockMiner blockMiner = new BlockMiner();
-
         EventBus eventBus = vertx.eventBus();
 
-        vertx.deployVerticle(blockMiner, testContext.succeeding(h -> {
+        vertx.deployVerticle(BlockMiner.class.getName(), testContext.succeeding(h -> {
             checkpoint.flag();
         }));
 
@@ -86,7 +82,7 @@ public class TestBlockVerticle {
                 long blockts = Instant.ofEpochMilli(lastBlock.getTimestamp()).plusSeconds(290).toEpochMilli();
                 Block rawBlock = new Block(index, "", lastBlock.getHash(), blockts, initialNonce, 5, transaction);
                 
-                ObservableHandler<Message<JsonObject>> blockMinerStream = RxHelper.observableHandler(true);
+                Observable<Message<JsonObject>> blockMinerStream = eventBus.<JsonObject>consumer(Topic.BLOCK_MINER).toObservable();
                 AtomicReference<Block> minedBlockContainer = new AtomicReference<Block>();
                 blockMinerStream
                     .map(msg -> msg.body())
@@ -108,8 +104,6 @@ public class TestBlockVerticle {
                         }
                     });
                 
-                eventBus.consumer(Topic.BLOCK_MINER, blockMinerStream.toHandler());
-                
                 BlockMinerMessage mineBlockMsg = new BlockMinerMessage(BlockMinerMessage.MINE_BLOCK, rawBlock.toJson());
                 
                 eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg.toJson());
@@ -121,14 +115,13 @@ public class TestBlockVerticle {
     }
 
     @Test
-    public void testGetHeaders(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void testGetHeaders(io.vertx.core.Vertx coreVertx, VertxTestContext testContext) throws Throwable {
+        Vertx vertx = Vertx.newInstance(coreVertx);
         LOGGER.info("TestBlockVerticle.testGetHeaders()");
 
         preMineBlocks(vertx, testContext, genesisBlock, 4);
 
         Checkpoint checkpoint = testContext.checkpoint(2);
-
-        BlockVerticle blockVerticle = new BlockVerticle();
 
         EventBus eventBus = vertx.eventBus();
 
@@ -136,7 +129,16 @@ public class TestBlockVerticle {
 
         BlockMessage getHeaderReq = new BlockMessage(BlockMessage.GET_HEADERS, getHeaders.toJson());
 
-        ObservableFuture<Message<JsonObject>> blockchainReplyStream = RxHelper.observableFuture();
+        Observable<Message<JsonObject>> blockchainReplyStream = vertx.rxDeployVerticle(BlockVerticle.class.getName())
+            .toObservable()
+            .doOnNext(deploymentId -> {
+                checkpoint.flag();
+            })
+            .flatMap(id -> {
+                Observable<Message<JsonObject>> observable;
+                observable = eventBus.<JsonObject>rxSend(Topic.BLOCK, getHeaderReq.toJson()).toObservable();
+                return observable;
+            });
 
         blockchainReplyStream
             .map(msg -> msg.body())
@@ -155,25 +157,20 @@ public class TestBlockVerticle {
                 checkpoint.flag();
             });
 
-        vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
-            eventBus.send(Topic.BLOCK, getHeaderReq.toJson(), blockchainReplyStream.toHandler());
-            checkpoint.flag();
-        }));
-
         testContext.awaitCompletion(1, TimeUnit.MINUTES);
     }
 
     @Test
-    public void testGetGenesisBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void testGetGenesisBlock(io.vertx.core.Vertx coreVertx, VertxTestContext testContext) throws Throwable {
+        Vertx vertx = Vertx.newInstance(coreVertx);
+
         LOGGER.info("TestBlockVerticle.testGetBlock()");
         Checkpoint checkpoint = testContext.checkpoint(3);
-
-        BlockVerticle blockVerticle = new BlockVerticle();
 
         EventBus eventBus = vertx.eventBus();
 
         AtomicReference<String> deployementId = new AtomicReference<>();
-        vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
+        vertx.deployVerticle(BlockVerticle.class.getName(), testContext.succeeding(h -> {
             checkpoint.flag();
             deployementId.set(h);
         }));
@@ -182,18 +179,20 @@ public class TestBlockVerticle {
         
         BlockMessage blockMessage = new BlockMessage(BlockMessage.GET_BLOCK, getBlock.toJson());
         
-        ObservableFuture<Message<JsonObject>> blockchainReplyStream = RxHelper.observableFuture();
+        Observable<Message<JsonObject>> blockchainReplyStream = vertx.rxDeployVerticle(BlockVerticle.class.getName())
+                .toObservable().doOnNext(deploymentId -> {
+                    checkpoint.flag();
+                }).flatMap(id -> {
+                    Observable<Message<JsonObject>> observable;
+                    observable = eventBus.<JsonObject>rxSend(Topic.BLOCK, blockMessage.toJson()).toObservable();
+                    return observable;
+                });
 
         blockchainReplyStream
             .map(msg -> msg.body())
             .map(json -> BlockMessage.from(json))
             .filter(blockMsg -> blockMsg.getType().equals(BlockMessage.BLOCK))
             .take(1)
-            .doOnCompleted(() -> {
-                vertx.undeploy(deployementId.get(), testContext.succeeding(h -> {
-                    checkpoint.flag();
-                }));
-            })
             .subscribe(blockMsg -> {
                 OneBlock oneBlock = OneBlock.from(blockMsg.getContent());
                 Block bcGenesisBlock = oneBlock.getBlock();
@@ -204,7 +203,6 @@ public class TestBlockVerticle {
                 checkpoint.flag();
             });
         
-        eventBus.send(Topic.BLOCK, blockMessage.toJson(), blockchainReplyStream.toHandler());
     }
 
 

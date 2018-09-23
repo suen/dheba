@@ -1,24 +1,22 @@
 package com.daubajee.dheba.peer;
 
+import java.util.concurrent.CompletableFuture;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.daubajee.dheba.Config;
 import com.daubajee.dheba.Topic;
-import com.daubajee.dheba.peer.msg.GetPeerList;
 import com.daubajee.dheba.peer.msg.HandShake;
-import com.daubajee.dheba.peer.msg.PeerList;
 import com.daubajee.dheba.peer.msg.PeerMessage;
 
 import io.reactivex.Observable;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
-import io.vertx.rx.java.ObservableFuture;
-import io.vertx.rx.java.ObservableHandler;
-import io.vertx.rx.java.RxHelper;
 
 public class PeerIncomingChannel extends AbstractVerticle {
 
@@ -115,7 +113,8 @@ public class PeerIncomingChannel extends AbstractVerticle {
     		LOGGER.warn("Peer {}:{} has not send HANDSHAKE msg, rejecting GET_LIST request", remoteHostAddress, remoteHostPort);
     		return;
     	}
-		ObservableFuture<Message<JsonObject>> observableFuture= RxHelper.observableFuture();
+    	CompletableFuture<Message<JsonObject>> future = new CompletableFuture<>();
+        Observable<Message<JsonObject>> observableFuture = Observable.fromCallable(() -> future.get());
 		observableFuture.subscribe(msg -> {
 			JsonObject peerListJson = PeerRegistryMessage.from(msg.body()).getContent();
 			PeerMessage peerMessage = new PeerMessage(PeerMessage.PEER_LIST, peerListJson);
@@ -124,7 +123,10 @@ public class PeerIncomingChannel extends AbstractVerticle {
 		});
 		
 		PeerRegistryMessage peerRegistryMsg = new PeerRegistryMessage(PeerRegistryMessage.GET_LIST, content);
-		eventBus.send(Topic.PEER_REGISTRY, peerRegistryMsg.toJson(), observableFuture.toHandler());
+        eventBus.send(Topic.PEER_REGISTRY, peerRegistryMsg.toJson(), (AsyncResult<Message<JsonObject>> handler) -> {
+		    Message<JsonObject> result = handler.result();
+            future.complete(result);
+		});
 	}
 
 	private static enum State {

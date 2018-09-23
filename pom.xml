@@ -13,7 +13,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>1.8</java.version>
-		<vertx.version>3.5.2</vertx.version>
+		<vertx.version>3.5.3</vertx.version>
 	</properties>
 
 	<dependencies>
@@ -55,13 +55,13 @@
 		</dependency>
 		<dependency>
 			<groupId>io.vertx</groupId>
-			<artifactId>vertx-rx-java</artifactId>
+			<artifactId>vertx-rx-java2</artifactId>
 			<version>${vertx.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>io.reactivex.rxjava2</groupId>
 			<artifactId>rxjava</artifactId>
-			<version>2.1.8</version>
+			<version>2.2.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>

@@ -16,15 +16,13 @@ import com.daubajee.dheba.block.miner.BlockMiner;
 import com.daubajee.dheba.block.miner.BlockMinerMessage;
 
 import io.reactivex.Observable;
-import io.vertx.core.Vertx;
-import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.junit5.Checkpoint;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import io.vertx.rx.java.ObservableHandler;
-import io.vertx.rx.java.RxHelper;
+import io.vertx.reactivex.core.Vertx;
+import io.vertx.reactivex.core.eventbus.EventBus;
+import io.vertx.reactivex.core.eventbus.Message;
 
 @ExtendWith(VertxExtension.class)
 public class TestBlockMiner {
@@ -32,17 +30,18 @@ public class TestBlockMiner {
     private static final Logger LOGGER = LoggerFactory.getLogger(BlockMiner.class);
 
     @Test
-    public void mineGenesisBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void mineGenesisBlock(io.vertx.core.Vertx coreVertx, VertxTestContext testContext) throws Throwable {
+        Vertx vertx = Vertx.newInstance(coreVertx);
+
         LOGGER.info("TestBlockMiner.mineGenesisBlock()");
         Checkpoint checkpoint = testContext.checkpoint(2);
-
-        BlockMiner blockMiner = new BlockMiner();
 
         EventBus eventBus = vertx.eventBus();
 
         Block rawGenesisBlock = new Block(0, "", "", 1531163330608L, 700075, 5, "Here comes the sun");
 
-        ObservableHandler<Message<JsonObject>> blockMinerStream = RxHelper.observableHandler(true);
+        Observable<Message<JsonObject>> blockMinerStream = eventBus.<JsonObject>consumer(Topic.BLOCK_MINER)
+                .toObservable();
         blockMinerStream
             .map(msg -> msg.body())
             .map(json -> BlockMinerMessage.from(json))
@@ -56,11 +55,10 @@ public class TestBlockMiner {
                 checkpoint.flag();
             });
         
-        eventBus.consumer(Topic.BLOCK_MINER, blockMinerStream.toHandler());
 
         BlockMinerMessage mineBlockMsg = new BlockMinerMessage(BlockMinerMessage.MINE_BLOCK, rawGenesisBlock.toJson());
 
-        vertx.deployVerticle(blockMiner, testContext.succeeding(h -> {
+        vertx.deployVerticle(BlockMiner.class.getName(), testContext.succeeding(h -> {
             eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg.toJson());
             checkpoint.flag();
         }));
@@ -69,15 +67,15 @@ public class TestBlockMiner {
     }
 
     @Test
-    public void testInterruptMining(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void testInterruptMining(io.vertx.core.Vertx coreVertx, VertxTestContext testContext) throws Throwable {
+        Vertx vertx = Vertx.newInstance(coreVertx);
+
         LOGGER.info("TestBlockMiner.testInterruptMining()");
         Checkpoint checkpoint = testContext.checkpoint(2);
 
-        BlockMiner blockMiner = new BlockMiner();
-
         EventBus eventBus = vertx.eventBus();
 
-        vertx.deployVerticle(blockMiner, testContext.succeeding(h -> {
+        vertx.deployVerticle(BlockMiner.class.getName(), testContext.succeeding(h -> {
             checkpoint.flag();
         }));
 
@@ -86,7 +84,8 @@ public class TestBlockMiner {
                 "000001344b4a8975c8f1a32315ca878efdea70d6b1787d2342f933b636368541", 1531163330608L, 941172, 5,
                 "Here comes another one");
 
-        ObservableHandler<Message<JsonObject>> blockMinerStream = RxHelper.observableHandler(true);
+        Observable<Message<JsonObject>> blockMinerStream = eventBus.<JsonObject>consumer(Topic.BLOCK_MINER)
+                .toObservable();
         blockMinerStream
             .map(msg -> msg.body())
             .map(json -> BlockMinerMessage.from(json))
@@ -101,7 +100,6 @@ public class TestBlockMiner {
             });
         
         
-        eventBus.consumer(Topic.BLOCK_MINER, blockMinerStream.toHandler());
 
         BlockMinerMessage mineBlockMsg1 = new BlockMinerMessage(BlockMinerMessage.MINE_BLOCK, rawGenesisBlock1.toJson());
         eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg1.toJson());
@@ -116,15 +114,14 @@ public class TestBlockMiner {
     }
     
     @Test
-    public void testInformBlockFound(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void testInformBlockFound(io.vertx.core.Vertx coreVertx, VertxTestContext testContext) throws Throwable {
+        Vertx vertx = Vertx.newInstance(coreVertx);
         LOGGER.info("TestBlockMiner.testInformBlockFound()");
         Checkpoint checkpoint = testContext.checkpoint(2);
         
-        BlockMiner blockMiner = new BlockMiner();
-        
         EventBus eventBus = vertx.eventBus();
         
-        vertx.deployVerticle(blockMiner, testContext.succeeding(h -> {
+        vertx.deployVerticle(BlockMiner.class.getName(), testContext.succeeding(h -> {
             checkpoint.flag();
         }));
         
@@ -137,7 +134,9 @@ public class TestBlockMiner {
                 "000001344b4a8975c8f1a32315ca878efdea70d6b1787d2342f933b636368541", 1531163330608L, 941172, 5,
                 "Here comes another one");
         
-        ObservableHandler<Message<JsonObject>> blockMinerStream = RxHelper.observableHandler(true);
+        Observable<Message<JsonObject>> blockMinerStream = eventBus.<JsonObject>consumer(Topic.BLOCK_MINER)
+                .toObservable();
+
         blockMinerStream
             .map(msg -> msg.body())
             .map(json -> BlockMinerMessage.from(json))
@@ -153,7 +152,6 @@ public class TestBlockMiner {
             });
         
         
-        eventBus.consumer(Topic.BLOCK_MINER, blockMinerStream.toHandler());
         
         BlockMinerMessage mineBlockMsg1 = new BlockMinerMessage(BlockMinerMessage.MINE_BLOCK, rawGenesisBlock.toJson());
         eventBus.publish(Topic.BLOCK_MINER, mineBlockMsg1.toJson());
