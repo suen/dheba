@@ -164,7 +164,7 @@ public class TestBlockVerticle {
     }
 
     @Test
-    public void testGetBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
+    public void testGetGenesisBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
         LOGGER.info("TestBlockVerticle.testGetBlock()");
         Checkpoint checkpoint = testContext.checkpoint(2);
 
