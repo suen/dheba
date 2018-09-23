@@ -166,14 +166,16 @@ public class TestBlockVerticle {
     @Test
     public void testGetGenesisBlock(Vertx vertx, VertxTestContext testContext) throws Throwable {
         LOGGER.info("TestBlockVerticle.testGetBlock()");
-        Checkpoint checkpoint = testContext.checkpoint(2);
+        Checkpoint checkpoint = testContext.checkpoint(3);
 
         BlockVerticle blockVerticle = new BlockVerticle();
 
         EventBus eventBus = vertx.eventBus();
 
+        AtomicReference<String> deployementId = new AtomicReference<>();
         vertx.deployVerticle(blockVerticle, testContext.succeeding(h -> {
             checkpoint.flag();
+            deployementId.set(h);
         }));
         
         GetBlock getBlock = new GetBlock(genesisHeader);
@@ -187,6 +189,11 @@ public class TestBlockVerticle {
             .map(json -> BlockMessage.from(json))
             .filter(blockMsg -> blockMsg.getType().equals(BlockMessage.BLOCK))
             .take(1)
+            .doOnCompleted(() -> {
+                vertx.undeploy(deployementId.get(), testContext.succeeding(h -> {
+                    checkpoint.flag();
+                }));
+            })
             .subscribe(blockMsg -> {
                 OneBlock oneBlock = OneBlock.from(blockMsg.getContent());
                 Block bcGenesisBlock = oneBlock.getBlock();
@@ -198,7 +205,6 @@ public class TestBlockVerticle {
             });
         
         eventBus.send(Topic.BLOCK, blockMessage.toJson(), blockchainReplyStream.toHandler());
-
     }
 
 
