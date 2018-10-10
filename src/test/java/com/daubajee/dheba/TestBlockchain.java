@@ -7,7 +7,7 @@ import static org.junit.Assert.assertThat;
 import java.util.Optional;
 import java.util.function.Function;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import com.daubajee.dheba.block.Block;
 import com.daubajee.dheba.block.BlockUtils;
