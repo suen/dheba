@@ -8,10 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.daubajee.dheba.block.msg.BlockHeader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
+import com.daubajee.dheba.block.msg.BlockHeader;
 
 public class Blockchain {
 
@@ -92,21 +92,21 @@ public class Blockchain {
             LOGGER.info("Previous hash of incoming block unknown, block {}", block.toJson());
             return Optional.empty();
         }
-
-        if (blockIndex > lastHeader.getHeight() - BlockConstant.MAX_FORK_INTERVAL) {
+        int diff = blockIndex - lastHeader.getHeight();
+        if (diff > BlockConstant.MAX_FORK_INTERVAL) {
             LOGGER.info("Incoming block is at index {}, current index {}", blockIndex, lastHeader.getHeight());
             return Optional.empty();
         }
 
         Block previousBlock = prevBlockResult.get();
 
-        if (previousBlock.getIndex() != blockIndex + 1) {
+        if (previousBlock.getIndex() + 1 != blockIndex) {
             LOGGER.info("Incoming block is at height {} which is more than +1 than the previous block's height {}",
                     block.getIndex(), previousBlock.getIndex());
             return Optional.empty();
         }
         
-        if (block.getTimestamp() > previousBlock.getTimestamp()) {
+        if (block.getTimestamp() < previousBlock.getTimestamp()) {
             LOGGER.info("Incoming block is at timestamp {} which is inferior to the previous block's timestamp {}",
                     block.getTimestamp(), previousBlock.getTimestamp());
             return Optional.empty();
