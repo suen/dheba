@@ -70,8 +70,7 @@ public final class BlockUtils {
     }
 
     private static Optional<Block> getBlockAtIndex(Block block, int index, Function<String, Block> blockLookup) {
-        if (block == null || block.getIndex() - BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL > index
-                || block.getIndex() == 0) {
+        if (block == null || block.getIndex() - BlockConstant.DIFFICULTY_ADJUSTMENT_INTERVAL > index) {
             return Optional.empty();
         }
 
