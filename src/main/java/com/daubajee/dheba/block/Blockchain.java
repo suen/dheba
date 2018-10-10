@@ -63,6 +63,10 @@ public class Blockchain {
         return Optional.of(block);
     }
 
+    public Optional<Block> getBlock(String hash) {
+        return Optional.ofNullable(blockHashIndex.get(hash));
+    }
+
     public Optional<BlockHeader> append(Block block) {
         if (!block.isValid()) {
             LOGGER.info("An invalid block was received, block : {}", block.toJson());
