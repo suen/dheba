@@ -20,7 +20,7 @@ import io.reactivex.Observable;
 public class TestBlockchain {
 
     @Test
-    public void test() {
+    public void testAppendBlockTwoChains() {
         Blockchain chainA = new Blockchain();
         Blockchain chainB = new Blockchain();
 
@@ -43,6 +43,13 @@ public class TestBlockchain {
             Optional<BlockHeader> result = chainA.append(nextBlock);
             assertThat("Block rejected", result.isPresent(), is(true));
             System.out.println(Thread.currentThread().getName() + " - " + nextBlock.toJson());
+            BlockHeader acceptedBlockHeader = result.get();
+            Optional<Block> getAcceptedBlock = chainA.getBlock(acceptedBlockHeader);
+
+            assertThat("Block lookup failed", getAcceptedBlock.isPresent(), is(true));
+
+            Optional<BlockHeader> blockBResult = chainB.append(nextBlock);
+            assertThat("Chain B rejected block", blockBResult.isPresent(), is(true));
         }
 
     }
